@@ -1,0 +1,14 @@
+#!/usr/bin/perl
+
+#TODO: Understand directory names
+
+if ($ARGV[1] eq "") {
+    $TARGET=".";
+} else {
+    $TARGET=$ARGV[1];
+}
+
+$"=' ';
+@CMD = ("find", "-L", $TARGET, "-name", $ARGV[0]);
+print "@CMD\n";
+system(@CMD);

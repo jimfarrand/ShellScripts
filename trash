@@ -1,0 +1,617 @@
+#!/bin/bash
+
+## Script for unsure deleting.
+# Searches up the directory hierarchy for a trashcan
+# File is moved to the trashcan
+# Trashcan is pruned to certain maximum size
+# But trash it protected from deletion for a certain period of time
+#
+# I alias rm to 'trash -o -v'
+#
+# Copyright 2005-6 Jim Farrand
+# License
+#  1. The author of this program provides it "as is", with no ABSOLUTELY NO
+#  WARRANTY, not even the implied warranty of fitness for a particular purpose.
+#  2. The author of this program places no further restrictions on the use,
+#  modification and distribution of this program.  Go mad.
+
+# Don't barf on empty expansion of *
+shopt -s nullglob
+
+## Make a path absolute.
+# Returned in $THEPATH
+function absolute {
+  THEPATH="$1"
+
+  if ! (echo $THEPATH | grep -q '^/' ) ; then
+    THEPATH="$PWD/$THEPATH"
+  fi
+}
+
+function split {
+	THEPATH="$1"
+	PATHSTART=`dirname "$THEPATH"`
+	PATHEND=`basename "$THEPATH"`
+}
+
+function findcan {
+        CHECKPATH="$1"
+        #echo findcan $CHECKPATH
+        if [ -n "$CHECKPATH" ] ; then
+                CANPATH="$CHECKPATH/.trashcan.$USER"
+                if [ -d "$CANPATH" -a -f "$CANPATH/.trashcaninfo" ] ; then
+                    return
+                else
+                    CANPATH="$CHECKPATH/.trashcan"
+                    if [ -d "$CANPATH" -a -f "$CANPATH/.trashcaninfo" ] ; then
+                        return
+                    else
+                        split "$CHECKPATH"
+
+                        if [ "$CHECKPATH" != "/" ] ; then
+                                findcan "$PATHSTART"
+                        else
+                                CANPATH=""
+                        fi
+                    fi
+                fi
+        else
+                CANPATH=""
+        fi
+}
+
+##
+# Make units human readable
+# Parameter is in K
+# Result to stdout
+function make_human_readable {
+        local K="$1"
+        local M=1024
+        local G=$((M*M))
+
+        if [ "$K" -lt $M ] ; then
+                echo "$((K))K"
+        elif [ "$K" -lt $((10*M)) ] ; then
+                local BIG_END="$((K/M))"
+                local SMALL_END=$((((K-(BIG_END*M))*100)/M))
+                echo $((BIG_END)).$((SMALL_END))M
+        elif [ "$K" -lt $((100*M)) ] ; then
+                local BIG_END="$((K/M))"
+                local SMALL_END=$((((K-(BIG_END*M))*10)/M))
+                echo $((BIG_END)).$((SMALL_END))M
+        elif [ "$K" -lt $G ] ; then
+                local BIG_END="$((K/M))"
+                echo $((BIG_END))M
+        elif [ "$K" -lt $((10*G)) ] ; then
+                local BIG_END="$((K/G))"
+                local SMALL_END=$((((K-(BIG_END*G))*100)/G))
+                echo $((BIG_END)).$((SMALL_END))G
+        elif [ "$K" -lt $((100*G)) ] ; then
+                local BIG_END="$((K/G))"
+                local SMALL_END=$((((K-(BIG_END*G))*10)/G))
+                echo $((BIG_END)).$((SMALL_END))G
+        else
+                local BIG_END="$((K/G))"
+                echo $((BIG_END))G
+        fi
+}
+
+##
+# Find the size of a days worth of trash
+# Sometimes we do this repeatedly on the same directory, and sometimes there is
+# a LOT of files
+# So we cache the size in $CANDAYPATH/.trashcansize
+# To invalidate the cache, just delete this file
+function trash_day_size {
+        local CANDAYPATH="$1"
+        local DISPLAY="$2"
+        local CANDAYSIZE_FILE="$CANDAYPATH/.trashcansize"
+
+        TRASH_SIZE_K=""
+        # Read the cache file, if if exists
+        if [ -f "$CANDAYSIZE_FILE" ] ; then
+                source "$CANDAYSIZE_FILE"
+        fi
+
+        # Check if we still don't know the size (file missing or doesn't contain the size)
+        if [ -z "$TRASH_SIZE_K" ] ; then
+                # Cache miss.  Compute the size 
+                #echo du --block-size=1K --summarize "$CANDAYPATH"
+                TRASH_SIZE_K=`du --block-size=1K --summarize "$CANDAYPATH" | sed -s 's/\([0-9]*\).*/\1/'`
+                # Cache the result
+                echo "TRASH_SIZE_K=\"$TRASH_SIZE_K\"" >"$CANDAYSIZE_FILE"
+        fi
+
+        # Display the size, if that was requested
+        if [ -n "$DISPLAY" ] ; then
+                echo -e "`make_human_readable $TRASH_SIZE_K`\t$CANDAYPATH"
+        fi
+}
+
+##
+# Compute the size of a trashcan
+SHOW_FIRST_N=3
+SHOW_LAST_N=3
+function trash_size {
+        local CANPATH="$1"
+        local DISPLAY="$2"
+        local TOTAL_TRASH_SIZE_K=0
+
+        local COUNT=`ls -d "$CANPATH/"[0-9]*  | wc -l`
+        local ELIPSES_SHOWN
+
+        local N=0
+        local i
+        # Loop over each days worth of trash
+        for i in "$CANPATH/"[0-9]* ; do
+          # If this is in the first SHOW_FIRST_N lines
+          #   ... or this is in the last SHOW_LAST_N lines
+          #   ... or we haven't output the elipses yet, and this is in the last SHOW_LAST_N+1 lines
+          # The last case is to avoid one just line of output being replaced by one line elipses.
+          if [ \
+            "$N" -lt "$SHOW_FIRST_N" \
+              -o "$((COUNT-N))" -le "$SHOW_LAST_N" \
+              -o "(" -z "$ELIPSES_SHOWN" -a "$((COUNT-N))" -le $((SHOW_LAST_N+1)) ")" \
+          ] ; then
+            # Compute the size of the days worth of trash, and display if that was requested
+            trash_day_size $i $DISPLAY
+          else
+                # Compute size, but skip displaying result, even if it was requested
+                # If we haven't shown any epipses yet
+                if [ -z "$ELIPSES_SHOWN" ] ; then
+                        # If display was requested
+                        if [ -n "$DISPLAY" ] ; then
+                                echo "	..."
+                        fi
+                        # Mark as shown, even if we didn't really
+                        ELIPSES_SHOWN="yes"
+                fi
+                trash_day_size $i
+          fi
+          N=$((N+1))
+
+          # Add size of day to total.
+          TOTAL_TRASH_SIZE_K=$((TOTAL_TRASH_SIZE_K+TRASH_SIZE_K))
+        done
+
+        TRASH_SIZE_K=$TOTAL_TRASH_SIZE_K
+        TRASH_SIZE_M=$((TOTAL_TRASH_SIZE_K/1024))
+
+        if [ -n "$DISPLAY" ] ; then
+                echo -e "`make_human_readable $TRASH_SIZE_K`\t$CANPATH"
+        fi
+}
+
+##
+# Find out how much trash is allowed in the can
+function find_limit {
+        local CANPATH="$1"
+        local TRASHCANINFO="$CANPATH/.trashcaninfo"
+
+        source "$TRASHCANINFO"
+
+        if [ -z "$MAX_TRASHCAN_SIZE_K" ] ; then
+                if [ -z "$MAX_TRASHCAN_SIZE" ] ; then
+                        echo "No MAX_TRASHCAN_SIZE or MAX_TRASHCAN_SIZE_K set in $TRASHCANINFO"
+                        exit 1
+                fi
+                MAX_TRASHCAN_SIZE_K="$((MAX_TRASHCAN_SIZE*1024))"
+        fi
+
+        if [ -z "$NEW_TRASHCAN_SIZE_K" ] ; then
+                NEW_TRASHCAN_SIZE_K="$((MAX_TRASHCAN_SIZE_K/5))"
+        fi
+
+
+        if [ -z "$KEEP_TRASH_FROM" ] ; then
+                echo "No KEEP_TRASH_FROM set in $TRASHCANINFO"
+                exit 1
+        fi
+
+}
+
+##
+# Delete old trash if more than TRASHCAN_SIZE
+function emptytrash {
+        local CANPATH="$1"
+        find_limit "$CANPATH"
+
+        # Find size of trash
+        #local TRASH_SIZE=`du --block-size=1M --summarize "$CANPATH" | sed -s 's/\([0-9]*\).*/\1/'`
+        trash_size "$CANPATH"
+        #echo "Max Trash size = $MAX_TRASHCAN_SIZE M"
+        #echo "Trash size <= $TRASH_SIZE M"
+
+        # Find date we should keep from
+        local KEEP_FROM_DATE=`date --date="$KEEP_TRASH_FROM" +%Y%m%d`
+        #echo "Keep from: $KEEP_FROM_DATE"
+
+        local KEEP_GOING="Yes"
+        local LAST_TRIED="0"
+        while [ "$KEEP_GOING" = "Yes" -a "$TRASH_SIZE_K" -gt "$MAX_TRASHCAN_SIZE_K" ] ; do
+
+                KEEP_GOING="No"
+                local i
+                for i in `ls "$CANPATH" | grep '[0-9]*' | sort` ; do
+                        # echo i: $i
+                        # echo LAST_TRIED: $LAST_TRIED
+                        if [ "$i" ">" "$LAST_TRIED" ] ; then
+                                TARGET="$i"
+                                break
+                        fi
+                done
+
+                if [ -n "$TARGET" ] ; then
+                        LAST_TRIED="$TARGET"
+
+                        TARGET_DATE=`echo $TARGET | sed -e 's/\([0-9]*\)-[0-9]*/\1/'`
+                        #echo TARGET_DATE=$TARGET_DATE
+
+                        if [ -n "$IGNORE_KEEP_TIME" -o "$TARGET_DATE" -lt "$KEEP_FROM_DATE" ] ; then
+                                if [ -n "$FLAG_V" ] ; then
+                                        trash_day_size "$CANPATH/$TARGET"
+                                        echo "deleting `make_human_readable $TRASH_SIZE_K` trash from $TARGET"
+                                fi
+                                rm -rf "$CANPATH/$TARGET"
+
+                                KEEP_GOING="Yes"
+                                #TRASH_SIZE=`du --block-size=1M --summarize "$CANPATH" | sed -s 's/\([0-9]*\).*/\1/'`
+
+                                trash_size "$CANPATH"
+                        fi
+                fi
+        done
+}
+
+##
+# eg maketargetdir /home/jim/.trashcan /home/jim/foo/bar/qux
+#      returns /home/jim/.trashcan/foo/bar/qux
+function targetdir {
+        local CANPATH="$1"
+        local DATE="$2"
+        local FILEPATH="$3"
+        local TRASHPREFIX=`dirname "$CANPATH"`
+        # echo targetdir \"$CANPATH\" \"$DATE\" \"$FILEPATH\" \"$TRASHPREFIX\"
+        TARGETDIR="$CANPATH/$DATE"`echo $FILEPATH | sed -e "s|$TRASHPREFIX||"`
+}
+
+##
+# Find a file in the trashcan
+function searchtrash {
+        local CANPATH="$1"
+        local FILEPATH="$2"
+        # echo searchtrash $CANPATH $FILEPATH
+
+        local CANPREFIX=`dirname "$CANPATH"`
+        local REST=`echo $FILEPATH | sed -e "s|$CANPREFIX||"`
+        # echo "REST = $REST"
+
+        # ls -d "$CANPATH"/[0-9]*
+        for i in `ls -d "$CANPATH/"[0-9]* | sort` ; do
+          local TRY="$i$REST"
+          # echo TRY = $TRY
+          if [ -e "$TRY" ] ; then
+            echo "Found trash $TRY"
+            FOUND="$TRY"
+            FOUNDCANDAY="$i"
+          fi
+        done
+}
+
+USEDCANS=0
+function usedcan {
+  local NAME="$1"
+  local i
+  for (( i = 0 ; i < $USEDCANS ; i++ )) ; do
+    if [ ${USEDCANNAME[$i]} = "$NAME" ] ; then
+        # echo usedcans "${USEDCANNAME[*]}"
+        return
+    fi
+  done
+
+  USEDCANNAME[$USEDCANS]="$NAME"
+  USEDCANS=$((USEDCANS+1))
+  # echo usedcans "${USEDCANNAME[*]}"
+}
+
+# Search for a trashcan
+function trash {
+        local FILE="$1"
+        # echo trash $FILE
+
+        if [ "$MODE" = "delete" ] ; then
+                rm $FLAG_V $FLAG_F $FLAG_R "$FILE"
+        else
+                absolute "$FILE"
+
+                if [ ! -e "$THEPATH" -a ! -L "$THEPATH" ] ; then
+                                echo "`basename $0`: File not found $THEPATH"
+                                return
+                fi
+
+                split "$THEPATH"
+                DIR="$PATHSTART"
+                NAME="$PATHEND"
+                findcan $PATHSTART
+
+                if [ -z "$CANPATH" ] ; then
+                        if [ "$MODE" = "trashordelete" ] ; then
+                                rm $FLAG_V $FLAG_F $FLAG_R "$FILE"
+                        else
+                                echo "`basename $0`: Cannot find trashcan!"
+                        fi
+                else
+                        # If diretory, we must be in -r mode
+                        if [ -z "$FLAG_R" -a -d "$FILE" ] ; then
+                                echo "`basename $0`: not sending directory to trash, use -r: $FILE"
+                                return
+                        fi
+                        local DATE=`date +%Y%m%d`
+                        local N=0
+                        local M
+                        local DONE
+
+                        while [ -z "$DONE" ] ; do
+                                M=$N
+                                if [ $M -lt 10 ] ; then
+                                  M="0$((M))"
+                                fi
+                                targetdir "$CANPATH" "$DATE-$M" $DIR
+
+                                if [ ! -d "$CANPATH/$DATE-$M" ] ; then
+                                        DONE="yes"
+                                else
+                                        M=$((N+1))
+                                        if [ $M -lt 10 ] ; then
+                                                M="0$((M))"
+                                        fi
+
+                                        # Check if no next dir
+                                        # echo [ -d "$CANPATH/$DATE-$M" ] 
+                                        if [ -d "$CANPATH/$DATE-$M" ] ; then
+                                                # echo "Next dir exists"
+                                                N=$((N+1))
+                                        else
+                                                # If the days trash is over the limit, skip it
+                                                # This is so that we can smooth out removal of large amount of trash
+                                                M=$((N))
+                                                if [ $M -lt 10 ] ; then
+                                                        M="0$((M))"
+                                                fi
+                                                find_limit "$CANPATH"
+                                                # echo trash_day_size "$CANPATH/$DATE-$M"
+                                                trash_day_size "$CANPATH/$DATE-$M"
+
+                                                if [ $((TRASH_SIZE_K)) -lt $NEW_TRASHCAN_SIZE_K ] ; then
+                                                        #echo "TRASH_SIZE_K=$TRASH_SIZE_K"
+                                                        DONE="yes"
+                                                else
+                                                        N=$((N+1))
+                                                fi
+
+                                        fi
+                                fi
+                        done
+        
+                        if [ ! -d "$TARGETDIR" ] ; then 
+                                if ! mkdir $FLAG_V -p "$TARGETDIR" ; then
+                                        echo "`basename $0`: cannot create directory $TARGETDIR"
+                                        exit 1
+                                fi
+                        fi
+
+                        # Find a suitable name inside the trashcan
+                        # Usually this is the filename, but in case of collisions add a number
+                        local TARGET="$TARGETDIR/$NAME"
+                        if [ -e "$TARGET" ] ; then
+                                local SUFFIX=1
+                                BACKUP="$TARGET.bak$SUFFIX"
+                                while [ -e "$BACKUP" ] ; do
+                                                SUFFIX=$((SUFFIX+1))
+                                                BACKUP="$TARGET.bak$SUFFIX"
+                                done
+                                if ! mv $FLAG_V -f "$TARGET" "$BACKUP" ; then
+                                        exit 1
+                                fi
+                        fi
+                        
+                        case "$MODE" in
+                                "trash" | "trashordelete")
+                                        mv $FLAG_V $FLAG_F "$FILE" "$TARGET"
+                                ;;
+                                "copy")
+                                        cp $FLAG_V $FLAG_F $FLAG_R "$FILE" "$TARGET"
+                                ;;
+                                *)
+                                        echo "unknown mode"
+                                        exit 1
+                                ;;
+                        esac
+
+                        rm -f "$CANPATH/$DATE-$M/.trashcansize"
+                        usedcan "$CANPATH"
+                        # emptytrash "$CANPATH"
+                fi
+        fi
+}
+
+##
+# TODO: Invalidate cache
+function undelete {
+  local NAME="$1"
+  absolute "$NAME"
+  ABSNAME="$THEPATH"
+  findcan "$ABSNAME"
+  echo "Attempting to undelete $ABSNAME from $CANPATH"
+  searchtrash "$CANPATH" "$ABSNAME"
+  
+  if [ -n "$FOUND" ] ; then
+        PARENT=`dirname "$ABSNAME"`
+        if [ ! -e "$PARENT" ] ; then
+                mkdir -pv "$PARENT"
+        fi
+        
+        mv -vi "$FOUND" "$PARENT"
+
+        local N=1
+        local BAK
+        while [ -e "$FOUND.bak$N" ] ; do
+          BAK="$FOUND.bak$N"
+          N=$((N+1))
+        done
+
+        if [ -n "$BAK" ] ; then
+          mv -iv "$BAK" "$FOUND"
+        fi
+        rm -f "$FOUNDCANDAY/.trashcansize"
+  else
+    echo "Not found in trash"
+  fi
+}
+
+MODE="trash"
+
+while [ -n "$*" ] ; do
+        ARG="$1"
+        if [ -z "$NOMOREARGS" ] && ( echo $ARG | grep -q '^-' ) ; then
+          case "$ARG" in
+                        "--")
+                                NOMOREARGS="true"
+                                shift 1
+                        ;;
+                        "--help")
+                                cat <<EOHELP
+`basename $0`: [-t] [-o] [-d] [-v] [-c <path> <size> <keepdays>] [files]
+A replacement for rm that temporarily stores files in a trashcan so they may be
+undeleted
+
+        -t      Send following files to trashcan
+        -T      Copy following files to trashcan, without deleting
+        -d      Delete following files without sending them to trashcan
+        -o      Send following files to trashcan, or delete them if no trashcan
+                found
+        -u      Try to undelete the following file
+        -c <path> <size> <keepdays>     Create a trashcan at <path>.  Files
+                will be kept for at least <keepdays> days.  Trash will be
+                pruned if over <size>MiB.
+        -p <path>       Prune trashcan for <path>" trash will search upwards
+                        through the directory hierarchy for a trashcan, from
+                        the directory containing the file to be deleted.
+        --ignore-keep-time Ingore keep time when pruning trash
+
+If a trashcan it too large, it will be pruned.  trash will delete as many days
+worth of trash as necessary to bring the crashcan under size.  Trash which was
+deleted less than the given number of days it protected from pruning."
+
+If you change files inside one of the dated directories inside a trashcan, you
+should delete .trashcansize to prevent `basename $0` from getting confused
+about how much data is stored in that directory"
+EOHELP
+                                exit
+                        ;;
+                        "-t")
+                                MODE="trash"
+                                shift 1
+                        ;;
+                        "-T")
+                                MODE="copy"
+                                shift 1
+                        ;;
+                        "-o")
+                                MODE="trashordelete"
+                                shift 1
+                        ;;
+                        "-d")
+                                MODE="delete"
+                                shift 1
+                        ;;
+                        "-v")
+                                FLAG_V="-v"
+                                shift 1
+                        ;;
+                        "-f")
+                                FLAG_F="-f"
+                                shift 1
+                        ;;
+                        "-r")
+                                FLAG_R="-r"
+                                shift 1
+                        ;;
+                        "--ignore-keep-time")
+                                IGNORE_KEEP_TIME="yes"
+                                shift 1
+                        ;;
+                        "-c")
+                                LOC="$2"
+                                SIZE="$3"
+                                DAYS="$4"
+
+                                # echo '|'$LOC'|' '|'$SIZE'|' '|'$DAYS'|'
+
+                                if [ -z "$LOC" -o -z "$SIZE" -o -z "$DAYS" ] ; then
+                                        echo "`basename $0`: -c <path> <trash size in mb> <min days to keep trash>"
+                                        exit 1
+                                fi
+
+                                DAYS="\"$DAYS days ago\""
+                                LOC="$LOC/.trashcan.$USER"
+
+                                if [ -e "$LOC" ] ; then
+                                        echo "`basename $0`: Cannot create trashcan, $LOC already exists"
+                                        exit 1
+                                fi
+
+                                mkdir $FLAG_V "$LOC"
+                                echo MAX_TRASHCAN_SIZE_K="$((SIZE*1024))" >>$LOC/.trashcaninfo
+                                echo KEEP_TRASH_FROM="$DAYS" >>$LOC/.trashcaninfo
+                                
+                                shift 4
+                        ;;
+                        "-u")
+                                NAME="$2"
+                                undelete "$NAME"
+                                shift 2
+                        ;;
+                        "-p")
+                                NAME="$2"
+                                if [ -z "$NAME" ] ; then
+                                        echo "`basename $0` error: -p <name>"
+                                        exit 1
+                                fi
+
+                                SHOW_FIRST_N=9999
+                                SHOW_LAST_N=9999
+                                
+                                absolute "$NAME"
+                                ABSNAME="$THEPATH"
+                                findcan "$ABSNAME"
+
+                                if [ -z "$FLAG_V" ] ; then
+                                        echo "`basename $0`: -p implies -v"
+                                        FLAG_V="-v"
+                                fi
+
+                                if [ -z "$CANPATH" ] ; then
+                                        echo "Cannot find can for $NAME"
+                                else
+                                        usedcan "$CANPATH"
+                                fi
+                                shift 2
+                        ;;
+                        *)
+                          echo "`basename $0`: unknown option $ARG"
+                                exit 1
+                esac
+        else
+                trash "$ARG"
+                shift 1
+        fi
+done
+
+for (( i = 0 ; i < $USEDCANS ; i++ )) ; do
+        emptytrash "${USEDCANNAME[$i]}"
+        if [ -n "$FLAG_V" ] ; then
+                #du -shc "${USEDCANNAME[$i]}"/*
+                trash_size "${USEDCANNAME[$i]}" "display"
+        fi
+  done
