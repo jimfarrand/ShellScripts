@@ -1,0 +1,43 @@
+#!/bin/bash
+
+PATTERN="$1"
+shift
+
+if [ "$1" == --quoted ] ; then
+    QUOTED=true
+    shift
+fi
+   
+
+if [ -z "$PATTERN" -o -z "$1" ] ; then
+    echo "$0 <findclause> cmd param ..."
+    exit 1
+fi
+
+echo "Watching these files:"
+echo "find -L . -regextype posix-basic -regex \"$PATTERN\""
+find -L . -regextype posix-egrep -regex "$PATTERN"
+
+SLEEP_TIME="1"    
+while true ; do
+
+    while CS2="$(find -L . -regextype posix-egrep -regex "$PATTERN" -exec md5sum {} \;)" && [ "$CS1" = "$CS2" ] ; do
+        echo -ne "Waiting for changes\r"
+        sleep 5
+    done
+    echo "Change found, new hashes:"
+    diff <(echo "$CS1") <(echo "$CS2")
+
+    CS1="$CS2"
+
+    echo
+    echo
+
+    if [ -z "$QUOTED" ] ; then
+        "$@"
+    else
+        eval "$@"
+    fi
+    echo
+
+done

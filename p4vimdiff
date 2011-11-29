@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ "$1" = --help ] ; then
+    echo "$0 [changenum]"
+fi
+
+OUTPUT="$(if [ -z "$1" ] ; then
+    p4 opened
+else
+    p4 opened -c "$1"
+fi)"
+
+
+NAMES=$(echo "$OUTPUT" | sed -ne 's/^\([^#]*#[0-9]*\).*/"\1"/p' | tr '\n' ' ')
+
+echo "p4 diff -dc $NAMES"
+vim <(eval "p4 diff -dc $NAMES")
+

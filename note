@@ -1,0 +1,56 @@
+#!/bin/bash
+
+if [ -z "$NOTES_DIR" ] ; then
+    echo "Please configure your notes directory by setting \$NOTES_DIR"
+    exit 2
+fi
+
+if [ ! -d "$NOTES_DIR" ] ; then
+    echo "Please create a directory for your notes: $NOTES_DIR"
+    exit 2
+fi
+
+NAME="$1"
+
+if [ -z "$NAME" ] ; then
+    echo "$0 <note name>"
+    exit 1
+fi
+
+if [ ! -e "$NOTES_DIR/$NAME" ] ; then
+    RESP="foo"
+    while [ -n "$RESP" -a "$RESP" != "y" -a "$RESP" != "Y" -a "$RESP" != "n" -a "$RESP" != "N" ] ; do
+        echo -n "Note '$NAME' doesn't exist - should I create it?: [Y/n] "
+        read RESP
+    done
+
+    if [ "$RESP" == "n" -o "$RESP" == "N" ] ; then
+        echo "OK, bye"
+        exit
+    else
+        touch "$NOTES_DIR/$NAME"
+        if [ -e "$NOTES_DIR/.svn" ] ; then
+            svn add "$NOTES_DIR/$NAME"
+        fi
+    fi
+fi
+
+"$VISUAL" "$NOTES_DIR/$NAME"
+
+if [ -e "$NOTES_DIR/.svn" ] ; then
+    SVN="$(svn st "$NOTES_DIR")"
+    if [ -n "$SVN" ] ; then
+        echo "$SVN"
+        echo
+
+        RESP="foo"
+        while [ -n "$RESP" -a "$RESP" != "y" -a "$RESP" != "Y" -a "$RESP" != "n" -a "$RESP" != "N" ] ; do
+            echo -n "Commit to subversion?: [y/N] "
+            read RESP
+        done
+        if [ "$RESP" == "y" -o "$RESP" == "Y" ] ; then
+            svn commit -m "Updating notes" "$NOTES_DIR"
+        fi
+    fi
+fi
+
