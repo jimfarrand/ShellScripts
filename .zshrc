@@ -77,12 +77,20 @@ if [ -e ".zshrc.variables.$HOST" ] ; then
     source ".zshrc.variables.$HOST"
 fi
 
+# Function to extend the path
 function add_path {
     PATH="$PATH:$1"
 }
 
+# Add my scripts, if configured
 if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
     add_path "$JIMS_SHELLSCRIPTS"
+fi
+
+
+# Directory bookmarking script
+if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bm" ] ; then
+    source "$JIMS_SHELLSCRIPTS/bm"
 fi
 
 
@@ -91,4 +99,5 @@ LOCAL="$HOME/.zshrc.$HOST"
 if [ -e  "$LOCAL" ] ; then
   . "$LOCAL"
 fi
+
 

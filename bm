@@ -1,0 +1,159 @@
+#!/bin/echo Don't run this file, source it from your .bashrc or .zshrc
+
+# Bookmark directories on your command line so you can return to them easily
+#
+# NB: You need add "source" this file from your .bashrc or .zshrc
+# Running the script directly will have no effect!
+#
+# If you use zsh you will also get tab completion on the bookmark names
+#
+# bm -s foo
+# (Save this bookmark with the name foo)
+#
+# bm foo
+# (Change to the directory bookmarked as foo)
+#
+# bm -d foo
+# (Delete the bookmark called foo)
+#
+# cp bar $BM_FOO/
+# (Copy a file into the directory bookmarked as foo)
+#
+# BUGS:
+#   - The zsh/bash detection will break if you run one shell from within another
+
+BOOKMARK_FILE="$HOME/.cdbm"
+
+function is_valid_name
+{
+    echo "$1" | egrep >/dev/null '^[-a-zA-Z0-9_]+$'
+}
+
+function bm_get_names
+{
+    sed -e "s|\([^:]*\).*$|\1|"
+}
+
+function bm_get_locs
+{
+    sed -e "s|[^:]*:[ 	]*\(.*\)$|\1|"
+}
+
+function bm_longest_name
+{
+    cat "$BOOKMARK_FILE" | bm_get_names |
+    while read NAME ; do
+        echo $NAME | wc -c
+    done | sort -n | tail -n 1
+}
+
+function bm_show_bookmarks
+{
+    PAD=$(($(bm_longest_name)-1))
+    cat "$BOOKMARK_FILE" | sort |
+    while read LINE ; do
+        NAME=$(echo "$LINE" | bm_get_names)
+        LOC=$(echo "$LINE" | bm_get_locs | sed -e "s|$PWD\$|.|"  | sed -e "s|$PWD/|./|" )
+        printf "%${PAD}s: %s\n"  "$NAME" "$LOC"
+    done
+}
+
+function bm_update_variables
+{
+	if [ -e "$BOOKMARK_FILE" ] ; then
+	    cat "$BOOKMARK_FILE" | 
+	    while read LINE ; do
+		NAME=$(echo "$LINE" | bm_get_names | tr '[:lower:]' '[:upper:]' )
+		LOC=$(echo "$LINE" | bm_get_locs )
+		eval "export BM_$NAME=$LOC"
+	    done
+	fi
+}
+
+function bm {
+
+if [ "$1" = "-h" -o "$1" = "--help" ] ; then
+    # Display help
+    cat <<EOF
+Usage:
+
+List your bookmarks:
+bm
+
+Goto a bookmark:
+bm <bookmark>
+
+Save a bookmark:
+bm -s <bookmark>
+
+Delete a bookmark:
+bm -d <bookmark>
+EOF
+    return 1
+elif [ -z "$1" ] ; then
+    # List bookmarks
+
+    if [ ! -e "$BOOKMARK_FILE" ] ; then
+        echo "No bookmarks"
+    else
+        bm_show_bookmarks
+    fi
+
+elif [ "$1" = "-s" -o "$1" = "--save" ] ; then
+    # Save a bookmark
+
+    BOOKMARK_NAME="$2"
+
+    if ! is_valid_name "$BOOKMARK_NAME" ; then
+        echo >&2 "Invalid bookmark name: $BOOKMARK_NAME"
+        return 2
+    fi
+
+    echo -e "$BOOKMARK_NAME:\t$PWD" >>"$BOOKMARK_FILE"
+    bm_update_variables
+elif [ "$1" = "-d" -o "$1" = "--delete" ] ; then
+    BOOKMARK_NAME="$2"
+    TMP_BOOKMARK_FILE="$BOOKMARK_FILE.$RANDOM"
+    grep -v "^$BOOKMARK_NAME:" "$BOOKMARK_FILE" >"$TMP_BOOKMARK_FILE"
+    'mv' -f "$TMP_BOOKMARK_FILE" "$BOOKMARK_FILE"
+else
+    # Goto bookmark
+
+    BOOKMARK_NAME="$1"
+
+    if ! is_valid_name "$BOOKMARK_NAME" ; then
+        echo >&2 "Invalid bookmark name: $BOOKMARK_NAME"
+        return 2
+    fi
+
+    TARGET=$(sed -n -e "s/^$BOOKMARK_NAME:[ 	]*\(.*\)/\1/p" "$BOOKMARK_FILE" )
+
+    if [ -z "$TARGET" ] ; then
+        echo >&2 "No such bookmark"
+        return 3
+    fi
+
+    if [ ! -d "$TARGET" ] ; then
+        echo >&2 "Target does not exist or is not a directory: $TARGET"
+        return 3
+    fi
+
+    cd "$TARGET"
+fi
+
+}
+
+if echo "$SHELL" | grep >/dev/null 'zsh$' ; then
+
+    function _bm
+    {
+       if [ -f "$BOOKMARK_FILE" ] ; then
+         compadd $(cat "$BOOKMARK_FILE" | bm_get_names)
+       fi
+    }
+
+    compdef _bm bm
+
+fi
+
+bm_update_variables
