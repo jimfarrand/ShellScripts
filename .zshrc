@@ -87,6 +87,18 @@ if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
     add_path "$JIMS_SHELLSCRIPTS"
 fi
 
+# I don't know what this does any more, but I think it's required for the
+# bookmarking to work right in the bm script below.
+if ! uname -a | grep >/dev/null Cygwin ; then
+	# The following lines were added by compinstall
+
+	zstyle ':completion:*' completer _complete
+	zstyle :compinstall filename '/home/jim/.zshrc'
+
+	autoload -Uz compinit
+	compinit
+	# End of lines added by compinstall
+fi
 
 # Directory bookmarking script
 if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bm" ] ; then
