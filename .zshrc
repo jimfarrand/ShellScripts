@@ -100,6 +100,79 @@ function add_path {
 if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
     add_path "$JIMS_SHELLSCRIPTS"
 fi
+#
+# Screen chooser script, which reminds me I have logged in screens, and sets up
+# aliases to activate them
+if [ -e "$JIMS_SHELLSCRIPTS/screenchoose" ] ; then
+  source "$JIMS_SHELLSCRIPTS/screenchoose"
+fi
+
+# Fix display and other stuff inside screen
+function fixdisplay {
+        # Fix $DISPLAY
+	FILENAME="/tmp/.realdisplay.$USER.$SCREENNAME"
+	if [ -e "$FILENAME" ] ; then
+		NEWDISPLAY=`cat "$FILENAME"`
+		if [ "$DISPLAY" != "$NEWDISPLAY" -a -n "$NEWDISPLAY" ] ; then
+		    echo "DISPLAY taken from parent shell (now $NEWDISPLAY)"
+		    export DISPLAY="$NEWDISPLAY"
+		fi
+	fi
+
+        # Fix $GPG_AGENT_INFO
+	FILENAME="/tmp/.realgpgagent.$USER.$SCREENNAME"
+	if [ -e "$FILENAME" ] ; then
+		NEWGPGAGENT=`cat "$FILENAME"`
+		if [ "$GPG_AGENT_INFO" != "$NEWGPGAGENT" -a -n "$NEWGPGAGENT" ] ; then
+		    echo "GPG_AGENT_INFO taken from parent shell"
+		    export GPG_AGENT_INFO="$NEWGPGAGENT"
+		fi
+        fi
+
+        # Fix SSH_AGENT_PID
+	FILENAME="/tmp/.realsshagentpid.$USER.$SCREENNAME"
+	if [ -e "$FILENAME" ] ; then
+		NEW_SSH_AGENT_PID=`cat "$FILENAME"`
+		if [ "$SSH_AGENT_PID" != "$NEW_SSH_AGENT_PID" ] ; then
+		    echo "SSH_AGENT_PID taken from parent shell" # (Was: '$SSH_AGENT_PID' Now '$NEW_SSH_AGENT_PID'"
+		    export SSH_AGENT_PID="$NEW_SSH_AGENT_PID"
+
+                    if [ -n "SSH_AGENT_PID" ] ; then
+                        export SSHAGENT=/usr/bin/ssh-agent
+                        export SSHAGENTARGS="-s"
+                    fi
+		fi
+        fi
+#
+        ## Fix SSH_AUTH_SOCK
+	FILENAME="/tmp/.realsshauthsock.$USER.$SCREENNAME"
+	if [ -e "$FILENAME" ] ; then
+		NEW_SSH_AUTH_SOCK=`cat "$FILENAME"`
+		if [ "$SSH_AUTH_SOCK" != "$NEW_SSH_AUTH_SOCK" ] ; then
+		    echo "SSH_AUTH_SOCK taken from parent shell"
+		    export SSH_AUTH_SOCK="$NEW_SSH_AUTH_SOCK"
+		fi
+        fi
+
+        ## Fix SESSION_MANAGER
+	FILENAME="/tmp/.realsessionmanager.$USER.$SCREENNAME"
+	if [ -e "$FILENAME" ] ; then
+		NEW_SESSION_MANAGER=`cat "$FILENAME"`
+		if [ "$SESSION_MANAGER" != "$NEW_SESSION_MANAGER" ] ; then
+		    echo "SESSION_MANAGER taken from parent shell"
+		    export SESSION_MANAGER="$NEW_SESSION_MANAGER"
+		fi
+        fi
+}
+
+# Every now and then, fix the display
+function periodic {
+    if [ -n "$SCREENNAME" ] ; then
+        fixdisplay
+    fi
+}
+PERIOD=60
+
 
 ##
 # I don't know what this does any more, but I think it's required for the
