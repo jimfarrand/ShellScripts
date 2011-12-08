@@ -53,7 +53,8 @@ case $TERM in (xterm*|rxvt|screen)
         fi
 
         if [ "$TERM" = "screen" ] ; then
-                print -Pn "\ek%n@%m: %~\e\\"
+            #    print -Pn "\ek%n@%m: %~\e\\"
+            print -Pn "\ek${SHELL_NAME_PROMPT}Shell in %2~ as %n on %m\e\\"
         else
             print -Pn "\e]0;${SHELL_NAME_PROMPT}Shell in %2~ as %n on %m\a"
         fi
@@ -64,7 +65,8 @@ case $TERM in (xterm*|rxvt|screen)
         fi
 
         if [ "$TERM" = "screen" ] ; then
-                print -Pn "\ek%n@%m: $1\e\\"
+                #print -Pn "\ek%n@%m: $1\e\\"
+                print -Pn "\ek${SHELL_NAME_PROMPT}$1 in %2~ as %n on %m\e\\"
         else
                 print -Pn "\e]0;${SHELL_NAME_PROMPT}$1 in %2~ as %n on %m\a"
         fi
