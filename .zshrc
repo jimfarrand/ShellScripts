@@ -49,13 +49,15 @@ PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%m$PR_WHITE
 case $TERM in (xterm*|rxvt|screen)
   precmd () {
         if [ -n "$SHELL_NAME" ] ; then
-            SHELL_NAME_PROMPT="$SHELL_NAME: "
+            SHELL_NAME_PROMPT="$SHELL_NAME"
+        else
+            SHELL_NAME_PROMPT="Shell"
         fi
 
         if [ "$TERM" = "screen" ] ; then
                 print -Pn "\ek%n@%m: %~\e\\"
         else
-            print -Pn "\e]0;${SHELL_NAME_PROMPT}Shell in %2~ as %n on %m\a"
+            print -Pn "\e]0;${SHELL_NAME_PROMPT} | %2~ | %n@%m\a"
         fi
   }
   preexec () {
@@ -66,7 +68,7 @@ case $TERM in (xterm*|rxvt|screen)
         if [ "$TERM" = "screen" ] ; then
                 print -Pn "\ek%n@%m: $1\e\\"
         else
-                print -Pn "\e]0;${SHELL_NAME_PROMPT}$1 in %2~ as %n on %m\a"
+                print -Pn "\e]0;${SHELL_NAME_PROMPT} | $1 | %2~ | %n@%m\a"
         fi
   }
 ;;
