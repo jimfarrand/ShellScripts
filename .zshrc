@@ -16,6 +16,8 @@ if [ -n "$SOLARIS_HACKS" ] ; then
 fi
 
 ###
+# Prompt setup 
+
 # See if we can use colors.
 autoload colors zsh/terminfo
 
@@ -36,6 +38,7 @@ case $HOST in
   (jfarrand-1.dub2.amazon.com) 	HOST_COLOUR=$PR_YELLOW ;;
   (*) 		HOST_COLOUR=$PR_RED ;;
 esac
+
 
 # Set our prompt, which looks like this:
 PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%m$PR_WHITE:%B%2~%b%(!.#.$) "
@@ -72,21 +75,25 @@ function shn {
     export SHELL_NAME="$1"
 }
 
+##
 # Read in useful shell variables
 if [ -e ".zshrc.variables.$HOST" ] ; then
     source ".zshrc.variables.$HOST"
 fi
 
+##
 # Function to extend the path
 function add_path {
     PATH="$PATH:$1"
 }
 
+##
 # Add my scripts, if configured
 if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
     add_path "$JIMS_SHELLSCRIPTS"
 fi
 
+##
 # I don't know what this does any more, but I think it's required for the
 # bookmarking to work right in the bm script below.
 if ! uname -a | grep >/dev/null Cygwin ; then
@@ -100,16 +107,59 @@ if ! uname -a | grep >/dev/null Cygwin ; then
 	# End of lines added by compinstall
 fi
 
+##
 # Directory bookmarking script
 if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bm" ] ; then
     source "$JIMS_SHELLSCRIPTS/bm"
 fi
 
 
+##
 # Local configuration goes in .zshrc.hostname...
 LOCAL="$HOME/.zshrc.$HOST"
 if [ -e  "$LOCAL" ] ; then
   . "$LOCAL"
 fi
 
+###
+# Watch for logins, check every 20 seconds.
+WATCH=notme
+LOGCHECK=20
+# jim logged on pts/32 from :0.0 at 13:15
+WATCHFMT='%n %a %l from %m at %T'
+
+###
+# Report execution time if greater than 5 seconds
+REPORTTIME=5
+TIMEFMT="%J CPU: %*Er %*Uu %*Ss %P	Flts: %Fma %Rmi"
+
+##
+# Setup vim or vi as editor
+if [ -e `which vim` ] ; then
+	export VISUAL=vim
+	export EDITOR=vim
+else
+	export VISUAL=vi
+	export EDITOR=vi
+fi
+
+
+###
+# Locale
+export LANG=en_GB.UTF-8
+
+###
+# History config
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_FIND_NO_DUPS
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_REDUCE_BLANKS
+export HISTSIZE=10000
+
+# Interactive comments
+setopt INTERACTIVECOMMENTS
+
+##
+# Colour grepping
+export GREP_OPTIONS='--color=auto'
 
