@@ -35,7 +35,9 @@ PR_NO_COLOUR="%{$terminfo[sgr0]%}"
 
 # Chose a colour for this host
 case $HOST in
-  (jfarrand-1.dub2.amazon.com) 	HOST_COLOUR=$PR_YELLOW ;;
+  (jfarrand-1.dub2.amazon.com) 	HOST_COLOUR=$PR_CYAN ;;
+  (pyxis) 	HOST_COLOUR=$PR_BLUE ;;
+  (mu)  	HOST_COLOUR=$PR_YELLOW ;;
   (*) 		HOST_COLOUR=$PR_RED ;;
 esac
 
