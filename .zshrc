@@ -138,6 +138,7 @@ TIMEFMT="%J CPU: %*Er %*Uu %*Ss %P	Flts: %Fma %Rmi"
 if [ -e `which vim` ] ; then
 	export VISUAL=vim
 	export EDITOR=vim
+    alias vi=vim
 else
 	export VISUAL=vi
 	export EDITOR=vi
@@ -154,7 +155,12 @@ setopt HIST_EXPIRE_DUPS_FIRST
 setopt HIST_FIND_NO_DUPS
 setopt HIST_IGNORE_ALL_DUPS
 setopt HIST_REDUCE_BLANKS
-export HISTSIZE=10000
+HISTSIZE=100000
+SAVEHIST=100000
+HISTFILE=~/.zsh_history
+setopt inc_append_history
+setopt extended_history
+
 
 # Interactive comments
 setopt INTERACTIVECOMMENTS
@@ -162,4 +168,23 @@ setopt INTERACTIVECOMMENTS
 ##
 # Colour grepping
 export GREP_OPTIONS='--color=auto'
+
+##
+# Get bash help (which is useful and mostly applicable to zsh)
+function help
+{
+    bash -c "help $1"
+}   
+
+
+##
+# Aliases
+
+alias h=history
+alias hgr='history -d 1 | egrep'
+
+# Trashcan script
+if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
+    alias rm="$HOME/scripts/trash -o -v"
+fi
 
