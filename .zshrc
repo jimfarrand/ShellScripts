@@ -99,8 +99,9 @@ function add_path {
 
 ##
 # Add my scripts, if configured
-if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
-    add_path "$JIMS_SHELLSCRIPTS"
+if [ -d "$JIMS_SHELLSCRIPTS/bin" ] ; then
+    export XYXYXBASH="$JIMS_SHELLSCRIPTS"
+    add_path "$JIMS_SHELLSCRIPTS/bin"
 fi
 
 ##
