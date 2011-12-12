@@ -102,6 +102,13 @@ function add_path {
 if [ -d "$JIMS_SHELLSCRIPTS" ] ; then
     add_path "$JIMS_SHELLSCRIPTS"
 fi
+
+##
+# Cabal
+if [ -d "$HOME/.cabal/bin" ] ; then
+    add_path "$HOME/.cabal/bin"
+fi
+
 #
 # Screen chooser script, which reminds me I have logged in screens, and sets up
 # aliases to activate them
@@ -258,6 +265,25 @@ function help
 {
     bash -c "help $1"
 }   
+
+if [ -n "$START_SSH_AGENT" ] ; then
+    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
+    SSH_AGENT_FILE="$HOME/.mantrid"
+    if [ "$CURRENT_SSH_AGENT" = "" ]; then
+       # there is no agent running
+       if [ -e "$SSH_AGENT_FILE" ]; then
+          # remove the old file
+          /bin/rm -f "$SSH_AGENT_FILE"
+       fi;
+       # start a new agent
+       /usr/bin/ssh-agent -t 3600 | /bin/grep -v echo >&"$SSH_AGENT_FILE"
+    fi;
+
+    test -e "$SSH_AGENT_FILE" && source "$SSH_AGENT_FILE"
+
+    alias kagent="kill -9 $SSH_AGENT_PID"
+    alias addk="ssh-add -t 3600"
+fi
 
 
 ##

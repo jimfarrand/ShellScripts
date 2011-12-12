@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HOST="$1"
+HOST="$@"
 
 for i in "$HOME/.ssh/id_"*.pub ; do
     read -p "Propogate $i? [Y/n] " -n 1 LINE
@@ -15,4 +15,4 @@ for i in "$HOME/.ssh/id_"*.pub ; do
     fi
 done
 
-ssh "$HOST" if [ \! -d .ssh ] \; then mkdir .ssh \; fi \; echo "$KEYS" \>\>.ssh/authorized_keys
+ssh "$@" if [ \! -d .ssh ] \; then mkdir .ssh \; fi \; echo "$KEYS" \>\>.ssh/authorized_keys
