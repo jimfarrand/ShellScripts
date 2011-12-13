@@ -267,7 +267,7 @@ function help
 }   
 
 if [ -n "$START_SSH_AGENT" ] ; then
-    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
+    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep -v "<defunct>" | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
     SSH_AGENT_FILE="$HOME/.mantrid"
     if [ "$CURRENT_SSH_AGENT" = "" ]; then
        # there is no agent running
