@@ -44,7 +44,7 @@ esac
 
 
 # Set our prompt, which looks like this:
-PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%B%m%b$PR_WHITE:$PR_DIM_BLUE$HISTCMD$PR_WHITE:%B%2~%b%(!.#.$) "
+PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%B%m%b$PR_WHITE:$PR_DIM_BLUE%h$PR_WHITE:%B%2~%b%(!.#.$) "
 
 # This sets the title of the xterminal to include the name of the running program
 case $TERM in (xterm*|rxvt|screen)
@@ -245,9 +245,8 @@ export LANG=en_GB.UTF-8
 # History config
 setopt HIST_EXPIRE_DUPS_FIRST
 setopt HIST_FIND_NO_DUPS
-setopt HIST_IGNORE_ALL_DUPS
 setopt HIST_REDUCE_BLANKS
-HISTSIZE=100000
+HISTSIZE=200000
 SAVEHIST=100000
 HISTFILE=~/.zsh_history
 setopt inc_append_history
