@@ -44,7 +44,7 @@ esac
 
 
 # Set our prompt, which looks like this:
-PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)]$HOST_COLOUR%m$PR_WHITE%B$PR_DIM_BLUE:$HISTCMD:%b$PR_WHITE%2~%b%(!.#.$) "
+PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%B%m%b$PR_WHITE$PR_DIM_BLUE:$HISTCMD:$PR_WHITE%B%2~%b%(!.#.$) "
 
 # This sets the title of the xterminal to include the name of the running program
 case $TERM in (xterm*|rxvt|screen)
