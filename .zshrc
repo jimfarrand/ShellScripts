@@ -296,6 +296,7 @@ fi
 alias h='history -iDf'
 alias hgr='history -d 1 | egrep'
 alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
+alias ls="ls --color"
 
 # Trashcan script
 if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
