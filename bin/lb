@@ -1,0 +1,420 @@
+#!/bin/bash
+
+# 
+
+set -e
+
+# xyxyx script initialisation code
+if [ -f "$XYXYXBASH/loader" ] ; then
+    source "$XYXYXBASH/loader"
+else
+    echo "Couldn't load xyxyxscripts"
+    exit 1
+fi
+
+xyxyxlib "logging" || exit 1
+logging_mode_verbose
+DASH_V="-v"
+
+xyxyxlib "file_locking" || exit 1
+xyxyxlib "file_hash" || exit 1
+xyxyxlib "file_stat" || exit 1
+xyxyxlib "file_sizes" || exit 1
+
+export HASHER="$(which md5sum)"
+
+function device_number {
+    local TARGET="$1"
+    stat --format=%d "$TARGET"
+}
+
+META_DATA_USER=true
+META_DATA_GROUP=true
+META_DATA_PERMS=true
+#META_DATA_MTIME=true
+#META_DATA_CTIME=true
+#META_DATA_DEVICE=true
+META_DATA_INODE=true
+
+function file_meta_data {
+    local FILE="$1"
+    
+    local FORMAT="$( {
+            [ -z "$META_DATA_USER" ] || echo "USER='%U'"
+            [ -z "$META_DATA_GROUP" ] || echo "GROUP='%G'"
+            [ -z "$META_DATA_PERMS" ] || echo "PERMS='%a'"
+            [ -z "$META_DATA_MTIME" ] || echo "MTIME='%Y'"
+            [ -z "$META_DATA_CTIME" ] || echo "CTIME='%Z'"
+            [ -z "$META_DATA_DEVICE" ] || echo "DEVICE='%D'"
+            [ -z "$META_DATA_INODE" ] || echo "INODE='%i'"
+    } | sort )"
+
+    stat --format="$FORMAT" "$1"
+}
+
+# copy_data <file>
+function copy_data {
+    local LARGE_BLOCKS_DIR="$1"
+    local SMALL_BLOCKS_DIR="$2"
+    local SOURCE_FILE="$3"
+    local TARGET="$4"
+    local HASH_FILE="$5"
+    local DELETE_SOURCE_FILE=""
+
+    [ -z "$HASH_FILE" ] && ( echo "HASH_FILE" ; exit 1 )
+
+    log_debug "Storing data in block store"
+
+    if [ "$SOURCE_FILE" = "-" ] ; then
+        local TMPFILE="/tmp/lb.data.$RANDOM"
+        cat - >$TMPFILE || log_error "Couldn't store stdin in copy_data"
+        SOURCE_FILE="$TMPFILE"
+        DELETE_SOURCE_FILE="true"
+    fi
+
+    
+    local HASH
+    
+    if [ -e "$HASH_FILE" ] ; then
+        HASH="$(readlink "$HASH_FILE" | sed -ne 's|.*/\([0-9a-f]\+\)$|\1|p')"
+        [ -n "$HASH" ] || { log_error "Failed to read hash from $HASH_FILE" ; return 1 ; }
+        log_verbose "Retrieved hash: $HASH"
+    else
+        local DATA
+        #if [ "$SOURCE_FILE" = "-" ] ; then
+            #DATA="$(cat -)"
+            #HASH="$(echo -n "$DATA" | hash_stdin "$HASHER" )"
+        #else
+            HASH="$(hash_file "$HASHER" "$SOURCE_FILE")"
+        #fi
+
+        log_verbose "Calculated hash: $HASH"
+
+        log_debug "Linking to $HASH_FILE"
+        ln $DASH_V -s "$LARGE_BLOCKS_DIR/$HASH" "$HASH_FILE"
+    fi
+
+    log_debug "Data hash: $HASH"
+    local BLOCK_DATA_TARGET="$LARGE_BLOCKS_DIR/$HASH"
+    local BLOCK_DATA_TARGET2="$SMALL_BLOCKS_DIR/$HASH"
+    log_debug "Data target: $BLOCK_DATA_TARGET"
+
+    if [ -e "$BLOCK_DATA_TARGET" ] ; then
+        log_verbose "Skipping insert: $HASH"
+    else
+        local TEMP_FILE="$BLOCK_DATA_TARGET.temp-$RANDOM"
+        mkdir -pv "$(dirname "$TEMP_FILE")"
+
+        log_verbose "Inserting $HASH"
+
+        if ! cp $DASH_V "$SOURCE_FILE" "$TEMP_FILE" ; then
+            return 1
+        fi
+
+        if ! chmod $DASH_V u-w,g-rwx,o-rwx "$TEMP_FILE" ; then
+            rm "$TEMP_FILE"
+            return 1
+        fi
+
+        local HASH2="$(hash_file "$HASHER" "$TEMP_FILE")"
+        if [ "$HASH" != "$HASH2" ] ; then
+            log_warn "Hash does not match copied data"
+            rm $DASH_V "$TEMP_FILE"
+            return 0
+        else
+            if ! mv $DASH_V "$TEMP_FILE" "$BLOCK_DATA_TARGET" ; then
+                if [ ! -e "$BLOCK_DATA_TARGET" ] ; then
+                   return 1
+                fi
+            fi
+        fi
+    fi
+
+    if [ ! -e "$BLOCK_DATA_TARGET2" ] ; then
+        log_debug "Linking block $HASH to small block directory"
+        mkdir $DASH_V -p "$(dirname "$BLOCK_DATA_TARGET2")"
+        if ! ln $DASH_V "$BLOCK_DATA_TARGET" "$BLOCK_DATA_TARGET2" ; then
+            log_error "Couldn't create target in small blocks directory"
+            return 1
+        fi
+    fi
+
+    log_debug "File target: $TARGET"
+    if [ ! -e "$TARGET" ] ; then
+        log_debug "Linking block $HASH to target $TARGET"
+        if ! ln $DASH_V "$BLOCK_DATA_TARGET" "$TARGET" ; then
+            return 1
+        fi
+    fi
+
+    if [ "$DELETE_SOURCE_FILE" = true ] ; then
+        rm $DASH_V "$SOURCE_FILE"
+    fi
+}
+
+function copy {
+    local DEVICE_NUMBER="$1"
+    local SOURCE_DIR="$2"
+    local LARGE_BLOCKS_DIR="$3"
+    local TARGET_DIR="$4"
+    local META_DIR="$5"
+    local SMALL_BLOCKS_DIR="$6"
+    local HASH_CACHE_DIR="$7"
+    local FILE="$8"
+
+    [ -n "$HASH_CACHE_DIR" ] || { log_error "Hash cache dir not set" ; return 1 ; }
+
+    local SOURCE_FILE
+    local TARGET_DATA_FILE
+    if [ -z "$FILE" ] ; then
+        SOURCE_FILE="$SOURCE_DIR"
+        TARGET_DATA_FILE="$TARGET_DIR"
+        TARGET_META_FILE="$META_DIR/.meta"
+        TARGET_HASH_CACHE="$HASH_CACHE_DIR/"
+    else
+        SOURCE_FILE="$SOURCE_DIR/$FILE"
+        TARGET_DATA_FILE="$TARGET_DIR/$FILE"
+        TARGET_META_FILE="$META_DIR/$FILE.meta"
+        TARGET_HASH_CACHE="$HASH_CACHE_DIR/$FILE"
+    fi
+
+    if [ -z "$DEVICE_NUMBER" -o "$DEVICE_NUMBER" != "$(device_number "$SOURCE_FILE")" ] ; then
+        echo "Off of device: $DEVICE_NUMBER $SOURCE_FILE"
+        return
+    fi
+
+    log_info "Checkpointing: $SOURCE_FILE -> $TARGET_DATA_FILE"
+
+    mkdir $DASH_V -p "$(dirname "$TARGET_DATA_FILE")" || { log_error "Couldn't create directory for target data" ; return 1 ; }
+    mkdir $DASH_V -p "$(dirname "$TARGET_META_FILE")" || { log_error "Couldn't create directory for target meta-data" ; return 1 ; }
+    mkdir $DASH_V -p "$(dirname "$TARGET_HASH_CACHE")" || { log_error "Couldn't create directory for target hash-cache" ; return 1 ; }
+
+    local META_DATA="$(file_meta_data "$SOURCE_FILE")"
+    local USER GROUP="" PERMS="" MTIME="" TIME="" DEVICE="" INODE=""
+    eval "$META_DATA"
+
+    local HASH_FILE
+    if [ -n "$CTIME" ] ; then
+        HASH_FILE="$TARGET_HASH_CACHE.mhash.$CTIME"
+    fi
+
+    if ! echo -n "$META_DATA" | copy_data "$LARGE_BLOCKS_DIR" "$SMALL_BLOCKS_DIR" - "$TARGET_META_FILE" "$HASH_FILE"; then
+        log_error "Faield to write meta-data"
+        return 1
+    fi
+
+    if [ -n "$MTIME" ] ; then
+        HASH_FILE="$TARGET_HASH_CACHE.dhash.$MTIME"
+    fi
+
+    # Write file data
+    if [ -f "$SOURCE_FILE" ] ; then
+        if ! copy_data "$LARGE_BLOCKS_DIR" "$SMALL_BLOCKS_DIR" "$SOURCE_FILE" "$TARGET_DATA_FILE" "$HASH_FILE"; then
+            log_error "Failed to copy data"
+            return 1
+        fi
+    fi
+
+
+    # Write directory
+    if [ -d "$SOURCE_FILE" ] ; then
+        ls -A "$SOURCE_FILE" | while read CHILD ; do
+            if [ -n "$CHILD" ] ; then
+                if [ -z "$FILE" ] ; then
+                    CHILD_="$CHILD"
+                else
+                    CHILD_="$FILE/$CHILD"
+                fi
+                #echo "Recursing: $CHILD_"
+                if ! copy "$DEVICE_NUMBER" "$SOURCE_DIR" "$LARGE_BLOCKS_DIR" "$TARGET_DIR" "$META_DIR" "$SMALL_BLOCKS_DIR" "$HASH_CACHE_DIR" "$CHILD_" ; then
+                    return 1
+                fi
+            fi
+        done
+    fi
+
+    log_debug "Done checkpointing: $SOURCE_FILE -> $TARGET_DATA_FILE"
+
+    return 0
+}
+
+function show_help {
+    echo "$0 checkpoint"
+    echo "$0 cp"
+    echo "$0 version"
+    echo "$0 v"
+}
+
+function version {
+    local LABEL="$1"
+    local BACKUP_LOCATION="$2"
+    local SOURCE_DIR="$3"
+
+    if [ -z "$LABEL" -o -z "$BACKUP_LOCATION" -o -z "$SOURCE_DIR" ] ; then
+        echo "$0 version <label> <backup_location> <source_dir>"
+        return 1
+    fi
+
+    mkdir -pv "$LABELS_DIR"
+    rm -f "$LABELS_DIR/$LABEL"
+    echo >>"$LABELS_DIR/$LABEL" "BACKUP_LOCATION=\"$BACKUP_LOCATION\""
+    echo >>"$LABELS_DIR/$LABEL" "SOURCE_DIR=\"$SOURCE_DIR\""
+}
+
+function checkpoint {
+    local LABEL="$1"
+    local TIMESTAMP="$(date +%Y-%m-%d-%H-%M-%S)"
+    if [ ! -f "$LABELS_DIR/$LABEL" ] ; then
+        echo "Unrecognised label: $LABEL"
+        return 1
+    fi
+
+    source "$LABELS_DIR/$LABEL"
+    copy "$(device_number "$SOURCE_DIR")" "$SOURCE_DIR" "$BACKUP_LOCATION/blocks" "$BACKUP_LOCATION/backups/$LABEL/$TIMESTAMP/data" "$BACKUP_LOCATION/backups/$LABEL/$TIMESTAMP/meta" "$BACKUP_LOCATION/backups/$LABEL/$TIMESTAMP/blocks" "$BACKUP_LOCATION/backups/$LABEL/hashcache"
+}
+
+function disk_usage {
+    du 2>/dev/null -sch "$@" | sed 's/\([.0-9A-Z]\+\)[^.0-9A-Z].*/\1/p' | tail -n 1
+}
+
+function count_files {
+    find "$@" | wc -l
+}
+
+function count_distinct_files {
+    find "$@" -exec stat --format="%d,%i" {} \; | sort -u | wc -l
+}
+
+function print_disk_usage {
+    local LABEL="$1"
+    shift
+    printf "%s\t%s\t%s\n" "$(find "$@" | wc -l)" "$(disk_usage "$@")" "$LABEL"
+}
+
+
+function print_disk_usage_quick {
+    local COUNT="$(find "$@" | wc -l)"
+    local USAGE="$(disk_usage -l "$@")"
+    printf "%s (%s)\t%s (%s)\t%s\n" "$COUNT" "$COUNT" "$USAGE" "$USAGE" "$*"
+}
+
+USAGE_FORMAT="%20s: Stored: %4s Used: %4s (Data: %4s Meta: %4s)"
+
+function summarise_backup_usage {
+    local DIR="$1"
+    local STORED="$(disk_usage -l "$DIR/data")"
+    local USED="$(disk_usage "$DIR")"
+
+    if [ "$(basename "$DIR")" = hashcashe ] ; then
+        printf "$USAGE_FORMAT %s\n" \
+            "$(basename "$DIR")" \
+            ""
+            "$USED" \
+            ""
+            ""
+            ""
+    else
+        printf "$USAGE_FORMAT %s\n" \
+            "$(basename "$DIR")" \
+            "$STORED" \
+            "$USED" \
+            "$(disk_usage "$DIR/data" | tail -n 1)" \
+            "$(disk_usage "$DIR/meta" | tail -n 1)" \
+            "$(if [ "$(to_bytes "$USED")" -gt 0 ] ; then echo -e "scale=2\n$(to_bytes "$STORED")/$(to_bytes "$USED")" | bc ; fi)"
+        fi
+}
+
+function summarise_label_usage {
+    local DIR="$1"
+    local STORED="$(find "$DIR" -mindepth 2 -maxdepth 2 -regex ".*/data$" -print0 | disk_usage -l --files0-from=- | tail -n 1)"
+    local DISK="$(disk_usage "$DIR")"
+    printf "$USAGE_FORMAT %s\n" \
+        "$(basename "$DIR")" \
+        "$STORED" \
+        "$DISK" \
+        "$(find "$DIR" -mindepth 2 -maxdepth 2 -regex ".*/data$" -print0 | disk_usage --files0-from=- | tail -n 1)" \
+        "$(find "$DIR" -mindepth 2 -maxdepth 2 -regex ".*/meta$" -print0 | disk_usage --files0-from=- | tail -n 1)" \
+        "$(if [ "$(to_bytes "$DISK")" -gt 0 ] ; then echo -e "scale=2\n$(to_bytes "$STORED")/$(to_bytes "$DISK")" | bc ; fi)"
+
+    local BACKUP
+    for BACKUP in "$DIR/"* ; do
+        summarise_backup_usage "$BACKUP"
+    done
+}
+
+function summarise_total_usage {
+    local DIR="$1"
+
+    local STORED="$(find "$DIR" -mindepth 4 -maxdepth 4 -regex ".*/data$" -print0 | disk_usage -l --files0-from=- | tail -n 1)"
+    local DISK="$(disk_usage "$DIR")"
+
+    printf "$USAGE_FORMAT %s\n" "TOTAL" \
+        "$STORED" \
+        "$DISK" \
+        "$(find "$DIR" -mindepth 4 -maxdepth 4 -regex ".*/data$" -print0 | disk_usage --files0-from=- | tail -n 1)" \
+        "$(find "$DIR" -mindepth 4 -maxdepth 4 -regex ".*/meta$" -print0 | disk_usage --files0-from=- | tail -n 1)" \
+        "$(if [ "$(to_bytes "$DISK")" -gt 0 ] ; then echo -e "scale=2\n$(to_bytes "$STORED")/$(to_bytes "$DISK")" | bc ; fi)"
+
+    for LABEL in "$DIR/backups/"* ; do
+        echo
+        summarise_label_usage "$LABEL"
+    done
+}
+
+function stats {
+    if [ ! -d "$1" ] ; then
+        echo "$0 stats <backup_dir>"
+        return 1
+    fi
+
+    local LABEL
+    local BACKUP_DIR
+    for BACKUP_DIR in "$@" ; do
+
+        summarise_total_usage "$BACKUP_DIR"
+        echo
+        echo "Garbage: $(find "$BACKUP_DIR/blocks" -links 1 -printf "%p\0" | du -ch --files0-from=- | tail -n 1)"
+        echo
+    done
+
+    #print_disk_usage "$@"
+}
+
+function list_garbage {
+    if [ ! -d "$1" ] ; then
+        echo "$0 stats <backup_dir>"
+        return 1
+    fi
+
+    local LABEL
+    local BACKUP_DIR
+    for BACKUP_DIR in "$@" ; do
+        echo "Garbage in $BACKUP_DIR: $(find "$BACKUP_DIR/blocks" -links 1 -printf "%p\0" | du -ch --files0-from=- | tail -n 1)"
+    done
+}
+
+CONFIG_DIR="$HOME/.lb"
+LABELS_DIR="$CONFIG_DIR/labels"
+
+mkdir $DASH_V -p "$CONFIG_DIR"
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+  "v" | "version") version "$@" ;;
+  "cp" | "checkpoint")  checkpoint "$@" ;;
+  "stats") stats "$@" ;;
+  "lsg" | "listgarbage" ) list_garbage "$@" ;;
+  *) show_help ;;
+esac
+
+
+# $ lb version -help
+# lb version <label> <backup location> <path>
+# $ lb version home /mnt/backup/Backups" /home/jim
+# New Label: home
+#   Backup Location: /mnt/backup/Backups
+#   Path: /home/jim
+# lb cp home
+# Checkpointing /home/jim to /mnt/backup/Backups"

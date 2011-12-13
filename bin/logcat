@@ -1,0 +1,9 @@
+#!/bin/bash
+
+## xyxyx script initialisation code
+if [ -f "$XYXYXBASH/loader" ] ; then source "$XYXYXBASH/loader"
+else echo "Couldn't load xyxyxscripts"; exit 1; fi
+# See $XYXYXBASH/doc/README
+
+xyxyxlib logcat
+logcat "$@"
