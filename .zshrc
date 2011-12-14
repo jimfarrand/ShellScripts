@@ -29,6 +29,7 @@ autoload colors zsh/terminfo
 for color in RED GREEN YELLOW BLUE MAGENTA CYAN WHITE; do
 	eval PR_$color='%{$terminfo[bold]$fg[${(L)color}]%}'
 	eval PR_LIGHT_$color='%{$fg[${(L)color}]%}'
+	eval PR_DIM_$color='%{$terminfo[dim]$fg[${(L)color}]%}'
 	(( count = $count + 1 ))
 done
 PR_NO_COLOUR="%{$terminfo[sgr0]%}"
@@ -43,7 +44,7 @@ esac
 
 
 # Set our prompt, which looks like this:
-PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%m$PR_WHITE:%B%2~%b%(!.#.$) "
+PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%B%m%b$PR_WHITE:$PR_DIM_BLUE%h$PR_WHITE:%B%2~%b%(!.#.$) "
 
 # This sets the title of the xterminal to include the name of the running program
 case $TERM in (xterm*|rxvt|screen)
@@ -200,8 +201,8 @@ fi
 
 ##
 # Directory bookmarking script
-if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bm" ] ; then
-    source "$JIMS_SHELLSCRIPTS/bm"
+if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bin/bm" ] ; then
+    source "$JIMS_SHELLSCRIPTS/bin/bm"
 fi
 
 
@@ -242,15 +243,17 @@ export LANG=en_GB.UTF-8
 
 ###
 # History config
-setopt HIST_EXPIRE_DUPS_FIRST
-setopt HIST_FIND_NO_DUPS
-setopt HIST_IGNORE_ALL_DUPS
-setopt HIST_REDUCE_BLANKS
-HISTSIZE=100000
+HISTSIZE=200000
 SAVEHIST=100000
 HISTFILE=~/.zsh_history
-setopt inc_append_history
-setopt extended_history
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_FIND_NO_DUPS
+setopt HIST_REDUCE_BLANKS
+setopt INC_APPEND_HISTORY
+setopt EXTENDED_HISTORY
+setopt NO_CLOBBER
+setopt HIST_REDUCE_BLANKS
+setopt HIST_NO_STORE   # Don't store history commands in history
 
 
 # Interactive comments
@@ -290,9 +293,10 @@ fi
 ##
 # Aliases
 
-alias h=history
+alias h='history -iDf'
 alias hgr='history -d 1 | egrep'
 alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
+alias ls="ls --color"
 
 # Trashcan script
 if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
