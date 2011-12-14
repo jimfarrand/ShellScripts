@@ -201,8 +201,8 @@ fi
 
 ##
 # Directory bookmarking script
-if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bm" ] ; then
-    source "$JIMS_SHELLSCRIPTS/bm"
+if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bin/bm" ] ; then
+    source "$JIMS_SHELLSCRIPTS/bin/bm"
 fi
 
 
@@ -243,14 +243,17 @@ export LANG=en_GB.UTF-8
 
 ###
 # History config
-setopt HIST_EXPIRE_DUPS_FIRST
-setopt HIST_FIND_NO_DUPS
-setopt HIST_REDUCE_BLANKS
 HISTSIZE=200000
 SAVEHIST=100000
 HISTFILE=~/.zsh_history
-setopt inc_append_history
-setopt extended_history
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_FIND_NO_DUPS
+setopt HIST_REDUCE_BLANKS
+setopt INC_APPEND_HISTORY
+setopt EXTENDED_HISTORY
+setopt NO_CLOBBER
+setopt HIST_REDUCE_BLANKS
+setopt HIST_NO_STORE   # Don't store history commands in history
 
 
 # Interactive comments
@@ -290,9 +293,10 @@ fi
 ##
 # Aliases
 
-alias h=history
+alias h='history -iDf'
 alias hgr='history -d 1 | egrep'
 alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
+alias ls="ls --color"
 
 # Trashcan script
 if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
