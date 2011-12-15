@@ -118,10 +118,13 @@ if [ -e "$JIMS_SHELLSCRIPTS/bin/screenchoose" ] ; then
   source "$JIMS_SHELLSCRIPTS/bin/screenchoose"
 fi
 
+
 # Fix display and other stuff inside screen
 function fixdisplay {
+        local OLDUMASK=$(umask)
+        umask 077
         # Fix $DISPLAY
-	FILENAME="/tmp/.realdisplay.$USER.$SCREENNAME"
+	FILENAME="/tmp/.realdsplay.$USER.$SCREENNAME"
 	if [ -e "$FILENAME" ] ; then
 		NEWDISPLAY=`cat "$FILENAME"`
 		if [ "$DISPLAY" != "$NEWDISPLAY" -a -n "$NEWDISPLAY" ] ; then
@@ -129,7 +132,6 @@ function fixdisplay {
 		    export DISPLAY="$NEWDISPLAY"
 		fi
 	fi
-
         # Fix $GPG_AGENT_INFO
 	FILENAME="/tmp/.realgpgagent.$USER.$SCREENNAME"
 	if [ -e "$FILENAME" ] ; then
@@ -174,6 +176,7 @@ function fixdisplay {
 		    export SESSION_MANAGER="$NEW_SESSION_MANAGER"
 		fi
         fi
+        umask $OLDUMASK
 }
 
 # Every now and then, fix the display
