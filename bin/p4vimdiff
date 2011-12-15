@@ -14,5 +14,5 @@ fi)"
 NAMES=$(echo "$OUTPUT" | sed -ne 's/^\([^#]*#[0-9]*\).*/"\1"/p' | tr '\n' ' ')
 
 echo "p4 diff -dc $NAMES"
-vim <(eval "p4 diff -dc $NAMES")
+vim <(eval "p4 diff -f -dc $NAMES" 2>&1 )
 

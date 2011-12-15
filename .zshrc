@@ -270,6 +270,8 @@ function help
     bash -c "help $1"
 }   
 
+##
+# Start an SSH agent, if one isn't already running
 if [ -n "$START_SSH_AGENT" ] ; then
     CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
     SSH_AGENT_FILE="$HOME/.mantrid"
@@ -289,6 +291,10 @@ if [ -n "$START_SSH_AGENT" ] ; then
     alias addk="ssh-add -t 3600"
 fi
 
+## 
+# Make home/end work
+bindkey '^[OH' beginning-of-line
+bindkey '^[OF' end-of-line
 
 ##
 # Aliases

@@ -1,0 +1,29 @@
+#!/bin/bash
+# Temporary notes in vim
+
+DIR="/tmp/vim-notes-$USER"
+if [ ! -e "$DIR" ] ; then
+    mkdir -p "$DIR"
+fi
+
+NAME="$(date +%Y%m%d-%H%M%S).txt"
+
+echo "$NAME" >$DIR/$NAME
+echo "" >>$DIR/$NAME
+
+SUM_BEFORE="$(md5sum "$DIR/$NAME")"
+
+vim -c "set noai" "$DIR/$NAME"
+
+SUM_AFTER="$(md5sum "$DIR/$NAME")"
+
+if [ "$SUM_BEFORE" == "$SUM_AFTER" ] ; then
+    rm -v "$DIR/$NAME"
+else    
+    NEW_NAME="$(head -n 1 "$DIR/$NAME")"
+
+    if [ "$NAME" != "$NEW_NAME" ] ; then
+        mv -v "$DIR/$NAME" "$DIR/$NEW_NAME"
+    fi
+fi
+
