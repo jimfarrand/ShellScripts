@@ -95,7 +95,7 @@ fi
 ##
 # Function to extend the path
 function add_path {
-    PATH="$PATH:$1"
+    PATH="$1:$PATH"
 }
 
 ##
@@ -114,8 +114,8 @@ fi
 #
 # Screen chooser script, which reminds me I have logged in screens, and sets up
 # aliases to activate them
-if [ -e "$JIMS_SHELLSCRIPTS/screenchoose" ] ; then
-  source "$JIMS_SHELLSCRIPTS/screenchoose"
+if [ -e "$JIMS_SHELLSCRIPTS/bin/screenchoose" ] ; then
+  source "$JIMS_SHELLSCRIPTS/bin/screenchoose"
 fi
 
 # Fix display and other stuff inside screen
