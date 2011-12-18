@@ -1,0 +1,7 @@
+#!/bin/bash
+grep $USER/.Private /etc/fstab | sed -ne 's/^\([^ \t#]*\).*/\1/p' | while read ECRYPTFS_MOUNTPOINT ; do
+    if ! mount | grep --quiet -F "$ECRYPTFS_MOUNTPOINT" ; then
+        echo "Mounting: $ECRYPTFS_MOUNTPOINT"
+        mount -i "$ECRYPTFS_MOUNTPOINT"
+    fi
+done

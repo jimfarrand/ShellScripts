@@ -1,6 +1,21 @@
 ##
 # Jim's ZSH config file
 
+
+##
+# Read in useful shell variables
+if [ -e ".zshrc.variables.$HOST" ] ; then
+    source ".zshrc.variables.$HOST"
+fi
+
+##
+# Mount extra encrypted directories
+if [ -e "$JIMS_SHELLSCRIPTS/bin/mountextraecryptfs" ] ; then
+    "$JIMS_SHELLSCRIPTS/bin/mountextraecryptfs"
+fi
+
+
+
 ##
 # Check if we are running in stupid solaris
 if uname -a | grep SunOS >/dev/null ; then
@@ -85,12 +100,6 @@ esac
 function shn {
     export SHELL_NAME="$1"
 }
-
-##
-# Read in useful shell variables
-if [ -e ".zshrc.variables.$HOST" ] ; then
-    source ".zshrc.variables.$HOST"
-fi
 
 ##
 # Function to extend the path
