@@ -1,0 +1,467 @@
+#!/bin/bash
+
+
+# xyxyx script initialisation code
+if [ -f "$XYXYXBASH/loader" ] ; then source "$XYXYXBASH/loader"
+else echo "Couldn't load xyxyxbash"; exit 1; fi
+# See $XYXYXBASH/doc/README
+
+xyxyxlib "file_hash"
+
+DIR=$HOME/.towatch2
+SHOWS=$HOME/.towatch2/shows
+VIEWINGS=$HOME/.towatch2/viewings
+HASHES=$HOME/.towatch2/hashes
+COMMAND_DIR=$HOME/.towatch2/commands
+
+mkdir -p "$DIR" "$SHOWS" "$VIEWINGS" "$HASHES"
+
+VIDEO_BASE="$HOME/Videos"
+MORE_BASE="$HOME/Videos/More Video"
+CARTOONS_BASE="$MORE_BASE/Cartoons"
+COMEDY_BASE="$MORE_BASE/Comedy"
+SFF_BASE="$MORE_BASE/SF&F"
+
+RANDOM=$$
+DATE="$(date +%s)"
+
+function expand_shows {
+    local I
+    while read I ; do
+        case "$I" in
+            Cartoons )
+                    echo Futurama
+                    echo SouthPark
+                    echo FamilyGuy
+                    echo AmericanDad
+                    #echo InvaderZim
+                    #echo Daria
+                ;;
+            Comedy )
+                    echo PeepShow
+                    echo FatherTed
+                    #echo BigBangTheory
+                    echo RedDwarf
+                    #echo Inbetweeners
+                    echo Outnumbered
+                    #echo TheNewStatesman
+                    #echo YesMinister
+                    echo Blackadder
+                ;;
+            * )
+                echo "$I"
+            ;;
+        esac
+    done
+}
+
+function list_show_episodes  {
+    local I
+    for I in "$@" ; do
+        case "$I" in
+        Futurama )
+                find "$CARTOONS_BASE/Futurama" -name '*.avi'
+            ;;
+        SouthPark )
+                find "$CARTOONS_BASE/South Park" -name '*.avi' -or -name '*.mkv'
+            ;;
+        FamilyGuy )
+                find "$CARTOONS_BASE/Family Guy" -name '*.avi'
+            ;;
+        AmericanDad )
+                find "$CARTOONS_BASE/American Dad" -name '*.avi'
+            ;;
+        InvaderZim )
+                find "$CARTOONS_BASE/Invader Zim" -name '*.avi'
+            ;;
+        PeepShow )
+                find "$COMEDY_BASE/Peep Show" -name '*.avi' -or -name '*.m4v' -or -name '*.mkv'
+            ;;
+        FatherTed )
+                find "$COMEDY_BASE/Father Ted" -name '*.avi'
+            ;;
+        BigBangTheory )
+                find "$COMEDY_BASE/The Big Bang Theory" -name '*.avi'
+            ;;
+        RedDwarf )
+                find "$COMEDY_BASE/Red Dwarf" -name '*.avi'
+            ;;
+        Inbetweeners )
+                find "$COMEDY_BASE/inbetweeners" -name '*.avi'
+            ;;
+        TheITCrowd )
+                find "$COMEDY_BASE/The IT Crowd" -name '*.avi'
+            ;;
+        Outnumbered )
+                find "$COMEDY_BASE/Outnumbered" -name '*.avi' -or -name '*.mp4'
+            ;;
+        TheNewStatesman )
+                find "$COMEDY_BASE/The New Statesman" -name '*.avi'
+            ;;
+        YesMinister )
+                find "$COMEDY_BASE/Yes Minister" -name '*.avi'
+            ;;
+
+        Blackadder )
+                find "$COMEDY_BASE/Blackadder" -name '*.mp4'
+            ;;
+
+        Daria )
+                find "$CARTOONS_BASE/Daria" -name '*.avi' -or -name '*.mpg' -or -name '*.mpeg'
+            ;;
+        Babylon5 )
+                find "$SFF_BASE/Babylon 5/Season "[1-5] -name '*.avi' -or -name '*.mpg' -or -name '*.mpeg'
+            ;;
+        The4400 )
+                find "$SFF_BASE/The 4400" -name '*.avi' -or -name '*.mpg' -or -name '*.mpeg'
+            ;;
+        Dollhouse )
+                find "$SFF_BASE/Dollhouse" -name '*.mkv'
+            ;;
+        Lexx )
+                find "$SFF_BASE/Lexx" -name '*.avi'
+            ;;
+        *)
+            echo "No such show: $1"
+            exit 1
+        ;;
+        esac
+    done
+}
+
+function cached_file_hash {
+    local FILE="$1"
+    local FILE_HASH="$(hash_arg md5sum "$FILE")"
+    local CACHE_FILE="$HASHES/$FILE_HASH"
+    if [ -e "$CACHE_FILE" -a "$CACHE_FILE" -nt "$FILE" ] && [ "$(wc -c "$CACHE_FILE" | cut -d' ' -f 1)" = 33 ] ; then
+        cat "$CACHE_FILE"
+    else
+        echo >&2 "Hashing $FILE..."
+        local HASH="$(hash_file md5sum "$FILE" )"
+        echo "$HASH" >"$CACHE_FILE"
+        echo "$HASH"
+    fi
+}
+
+# last_showing $EPISODE $USER
+# Outputs:
+# time|random|hash
+function last_showing {
+    local EPISODE="$1"
+    local USER="$2"
+    local N="$3"
+    local HASH="$(cached_file_hash "$EPISODE")"
+
+    local VIEWING_DIR="$VIEWINGS/$USER"
+    local VIEWING_FILE="$VIEWING_DIR/$HASH"
+
+    local MOST_RECENT_VIEWING=0
+    if [ -e "$VIEWING_FILE" ] ; then
+        local LAST_VIEWING="$(cat "$VIEWING_FILE")"
+        if [ "$LAST_VIEWING" -gt "$MOST_RECENT_VIEWING" ] ; then
+            MOST_RECENT_VIEWING="$LAST_VIEWING"
+        fi
+    fi
+    if [ -n "$RANDOMIZE_ORDER" ] ; then
+        printf "%010d|%05d|%32s\n" "$MOST_RECENT_VIEWING" "$RANDOM" "$HASH"
+    else
+        printf "%010d|%05d|%32s\n" "$MOST_RECENT_VIEWING" "$N" "$HASH"
+    fi
+}
+
+# add_last_showing $USER
+# inputs episodes, 1 per line
+# outputs:
+# time|random|hash|user|episode
+function add_last_showing {
+    USER="$1"
+    local EPISODE
+    local N=0
+    while read EPISODE ; do
+        echo "$(last_showing "$EPISODE" "$USER" "$N" )|$USER|$EPISODE"
+        N=$((N+1))
+    done
+}
+
+function number {
+    WIDTH="$1"
+    local N=0
+    local LINE
+    while read LINE ; do
+        N=$((N+1))
+        printf "%0${WIDTH}d|%s\n" $N "$LINE"
+    done
+}
+
+set -e
+
+function trim {
+    sed 's/^[ \t]*0*\([1-9][0-9]*\)[ \t]*$/\1/'
+}
+
+# weights $USER1 $USER2 ...
+# inputs list of episodes
+# for each user:
+# order|time|random|hash|user|episode
+function weights {
+    #local INPUT="$(sort -n | tac)"
+    local INPUT="$(sort -n)"
+    for USER in "$@" ; do
+            echo "$INPUT" | add_last_showing "$USER" | sort | number 6
+    done
+}
+
+# Input from stdin
+function weight_episodes_for {
+    local EPISODES="$(cat)"
+    #local EPISODES="$(tac)"
+    
+    local WEIGHTS="$(echo "$EPISODES" | weights "$@" )"
+    local LINE
+    
+    local N=0
+    echo "$EPISODES" | while read EPISODE ; do
+        N=$((N+1))
+        HASH="$(cached_file_hash "$EPISODE")"
+        TOTAL_WEIGHT="$(echo "$WEIGHTS" | grep "$HASH" | while read LINE ; do
+            WEIGHT="$(echo "$LINE" | cut -d'|' -f 1 | trim)"
+            TOTAL=$((TOTAL+WEIGHT))
+            echo "$TOTAL"
+        done | tail -n 1)"
+        #echo >&2 "TOTAL_WEIGHT='$TOTAL_WEIGHT'"
+        if [ -n "$TOTAL_WEIGHT" ]  && [ "$TOTAL_WEIGHT" -gt 0 ] ; then
+            printf "%06d|%s|%s\n" "$TOTAL_WEIGHT" "$HASH" "$EPISODE"
+        fi
+        #printf "%06d|%06d|%s|%s\n" "$TOTAL_WEIGHT" "$N" "$HASH" "$EPISODE"
+    done | sort
+}
+
+function countdown {
+    local T="$1"
+    local P="$2"
+
+    for (( N=$T; N>0; N-- )) ; do
+        printf "$P\r" "$N"
+        sleep 1
+    done
+    printf "$P\n" "0"
+}
+
+function markwatched {
+    HASH="$1"
+    shift
+    for USER in $@ ; do
+        local VIEWING_DIR="$VIEWINGS/$USER"
+        local VIEWING_FILE="$VIEWING_DIR/$HASH"
+        mkdir -pv "$VIEWING_DIR"
+        echo "$DATE" >"$VIEWING_FILE"
+        echo "Recorded play for $USER"
+    done
+}
+
+function randomize_order {
+    RANDOM=$(date +%s)
+    local LINE
+    while read LINE ; do
+        echo "$RANDOM $LINE"
+    done | sort -n | sed -e 's/^[0-9]\+ //'
+}
+
+function play {
+    local USERS="$(echo "$1" | sed -e 's/,/ /g')"
+    local SHOWS="$(echo "$2" | sed -e 's/,/\n/g')"
+    SHOWS="$(echo "$SHOWS" | expand_shows)"
+    local PLAYCOUNT
+    if [ -z "$3" ] ; then
+        PLAYCOUNT=1
+    else
+        PLAYCOUNT="$3"
+    fi
+
+
+    echo "Users: $USERS"
+    echo "Shows:"
+    echo "$SHOWS"
+
+    echo "Hashing, weighting and sorting episodes, this might take a while (especially if there are new episodes)..."
+
+    local WEIGHTED_EPISODES="$(list_show_episodes $SHOWS | weight_episodes_for $USERS)"
+
+    echo "These episodes will be played least soon:"
+    echo "$WEIGHTED_EPISODES" | tail | tac | cut -d '|' -f 1,3
+    echo
+    echo "These episodes will be played soonest:"
+    echo "$WEIGHTED_EPISODES" | head | cut -d '|' -f 1,3
+    echo
+
+    # Hardcoded for now
+    local COMMAND=mplayer
+
+    if [ ! -e "$COMMAND_DIR/$COMMAND" ] ; then
+        echo "No such command: $COMMAND"
+        exit 1
+    fi
+
+    local LINE
+    local JUSTPLAYED
+    if [ -z "$DEFAULT_CHOICE" ] ; then
+        DEFAULT_CHOICE="c"
+    fi
+    local TIMEOUT=10
+
+    echo "$WEIGHTED_EPISODES" | (head -n "$PLAYCOUNT"; echo) | while read LINE ; do
+        local FILE="$(echo "$LINE" | cut -d '|' -f 3)"
+
+        if [ -n "$JUSTPLAYED" ] ; then
+            while true ; do
+                echo
+                echo "Just played: $JUSTPLAYED"
+                echo "Up next:     $FILE"
+
+                echo "Options:"
+                echo "  q) Quit"
+                echo "  e) Quit, do not mark the last episode as watched"
+                echo "  c) Continue playing"
+                echo "  u) Continue playing, do not mark the last episode as watched"
+                if [ -n "$FILE" ] ; then
+                    echo "  s) Skip the next episode"
+                    echo "  t) Skip the next episode, don't mark the last as watched"
+                fi
+                echo "  m) Give me more time"
+                echo
+                echo "Default choice '$DEFAULT_CHOICE' will be accepted after $TIMEOUT seconds, or when you press return"
+
+                local PROMPT
+
+
+                if ! read <&3 -t $TIMEOUT PROMPT || [ -z "$PROMPT" ] ; then
+                    PROMPT="$DEFAULT_CHOICE"
+                fi
+
+                case "$PROMPT" in
+                    "c" )
+                        markwatched "$HASH" "$USERS"
+                        break
+                    ;;
+                    "u" )
+                        break
+                    ;;
+                    "q" )
+                        markwatched "$HASH" "$USERS"
+                        exit 1
+                    ;;
+                    "e" )
+                        exit 1
+                    ;;
+                    "s" )
+                        markwatched "$HASH" "$USERS"
+                        SKIPNEXT=true
+                    ;;
+                    "t" )
+                        SKIPNEXT=true
+                    ;;
+                    "m")
+                        TIMEOUT=60
+                esac
+            done
+        fi
+
+        local HASH="$(echo "$LINE" | cut -d '|' -f 2)"
+
+        if [ -z "$SKIPNEXT" -a -n "$FILE" ] ; then
+            echo "$COMMAND \"$FILE\""
+            sh <&3 "$COMMAND_DIR/$COMMAND" "$FILE"
+
+        fi
+        JUSTPLAYED="$FILE"
+        echo
+
+
+
+    done
+
+}
+
+function nplay {
+    local USERS="$1"
+    local SHOWS="$(echo "$2" | sed -e 's/,/\n/g')"
+
+    SHOWS="$(echo "$SHOWS" | expand_shows | randomize_order)"
+    echo "Shows:"
+    echo "$SHOWS"
+
+    while true ; do
+        echo "$SHOWS" | while read SHOW ; do
+            play "$USERS" "$SHOW" 1
+        done
+    done
+}
+
+function showorder {
+    local USERS="$(echo "$1" | sed -e 's/,/ /g')"
+    local SHOWS="$(echo "$2" | sed -e 's/,/\n/g')"
+    SHOWS="$(echo "$SHOWS" | expand_shows)"
+
+    echo "Hashing, weighting and sorting episodes, this might take a while (especially if there are new episodes)..."
+    list_show_episodes $SHOWS | weight_episodes_for $USERS
+
+}
+
+function showweights {
+    local USERS="$(echo "$1" | sed -e 's/,/ /g')"
+    local EPISODES="$(echo "$2" | sed -e 's/,/ /g')"
+
+    echo "Hashing, weighting and sorting episodes, this might take a while (especially if there are new episodes)..."
+    list_show_episodes $EPISODES | weights $USERS
+
+}
+
+function markfilewatched {
+    local USERS="$(echo "$1" | sed -e 's/,/ /g')"
+    local FILE="$2"
+    local HASH="$(cached_file_hash "$FILE")"
+
+    echo "Recording play for $HASH $FILE..."
+    markwatched "$HASH" "$USERS"
+}
+
+exec 3<&0
+
+case "$1" in
+    play )
+       play "$2" "$3" 
+    ;;
+
+    nplay )
+       nplay "$2" "$3" 
+    ;;
+
+    showweights )
+       showweights "$2" "$3" 
+    ;;
+    showorder )
+       showorder "$2" "$3" 
+    ;;
+    extensions )
+        find "$2" -type f | sed -e 's/^.*\.\([^.]\+$\)/\1/' | sort | uniq
+    ;;
+    markwatched )
+        markfilewatched "$2" "$3"
+    ;;
+    importhistory )
+        _USERS="$2"
+        shift 2
+        cat "$@" |  sed -ne 's/^[a-z]*[\t ]\+\(\([ \t]*[^ \t]\+\)*\)[ \t]\+#[^#]*$/\1/p' |
+        while read FILE ; do
+            markfilewatched "$_USERS" "$FILE"
+        done
+    ;;
+    * )
+        echo "Unknown command $1"
+        echo "play user1,user2 Show1,Show2"
+        echo "showweights user1,user2 Show1,Show2"
+        echo "markwatched user1,user2 file"
+        echo "showorder user1,user2 Show1,Show2"
+    ;;
+esac
+
