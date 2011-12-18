@@ -1,0 +1,225 @@
+#!/bin/bash
+# This script queries your last.fm profile to remind you of some albums you
+# listened to recently, but not in the last week
+# By Jim Farrand
+
+LASTFM_USER="$1"
+shift
+START_WEEK="$1"
+shift
+END_WEEK="$1"
+shift
+
+if [ -z "$LASTFM_USER" ] ; then
+    LASTFM_USER="jynxzero"
+    echo >&2 "Warning: Defaulted lastfm user to jynxzero"
+    echo >&2 "Warning: Call as $0 username [start] [end]"
+    echo >&2
+fi
+
+if [ -z "$MIN_PLAYS" ] ; then
+    MIN_PLAYS="5"
+fi
+
+if [ -z "$START_WEEK" ] ; then
+    START_WEEK="1"
+fi
+
+if [ -z "$END_WEEK" ] ; then
+    END_WEEK=$((START_WEEK+2))
+fi
+
+function fetch_chart {
+    local FROM="$1"
+    local TO="$2"
+    local URL
+    local DATA
+
+    if [ -z "$FROM" -a -z "$TO" ] ; then
+        URL="http://ws.audioscrobbler.com/1.0/user/$LASTFM_USER/weeklyalbumchart.xml"
+    else
+        URL="http://ws.audioscrobbler.com/1.0/user/$LASTFM_USER/weeklyalbumchart.xml?from=$FROM&to=$TO"
+    fi
+
+    [ -n "$VERBOSE" ] && echo >&2 "Fetching from URL: $URL"
+
+    DATA="$(memo -d "6 hours" wget --quiet -O - "$URL")"
+    if [ "$?" != 0 ] ; then
+        echo >&2 "Error: Couldn't get album chart for $LASTFM_USER $FROM $TO"
+        echo >&2 "Error: The URL was $URL"
+        exit 10
+    fi
+
+    echo "$DATA"
+}
+
+function show_chart {
+        REMOVE_RECENT="$1"
+        grep 'artist\|name\|playcount' |
+        while read ARTIST_LINE ; do
+            read ALBUM_LINE
+            read PLAYCOUNT_LINE
+
+            # Grab the artist and album from the xml
+            ARTIST="$(echo "$ARTIST_LINE" | sed -n -e 's/<artist[^>]*>\([^<]*\)<\/artist>/\1/p' )"
+            ALBUM="$(echo "$ALBUM_LINE" | sed -n -e 's/<name[^>]*>\([^<]*\)<\/name>/\1/p' )"
+            PLAYCOUNT="$(echo "$PLAYCOUNT_LINE" | sed -n -e 's/<playcount[^>]*>\([0-9]*\)<\/playcount>/\1/p' )"
+
+            if [ -z "$ARTIST" ] ; then
+                echo >&2 "Warning: Null artist"
+                continue
+            fi
+
+            if [ -z "$ALBUM" ] ; then
+                echo >&2 "Warning: Null album"
+                continue
+            fi
+
+            if [ -z "$PLAYCOUNT" ] ; then
+                echo >&2 "Warning: Null playcount"
+                continue
+            fi
+
+            if [ "$PLAYCOUNT" -gt $((MIN_PLAYS-1)) ] ; then
+                if [ -z "$REMOVE_RECENT" ] || ! echo "$RECENT" | grep --quiet "$ARTIST - $ALBUM" ; then
+                    printf "%30s - %-30s (%3d tracks)\n" "$ARTIST" "$ALBUM" "$PLAYCOUNT"
+                fi
+            fi
+        done
+}
+
+function show_reminder {
+    local GO_BACK="$1"
+    local FETCHED
+
+    OLD_FROM=$((LATEST_FROM-(GO_BACK*CHART_SPAN)))
+    OLD_TO=$((LATEST_TO-(GO_BACK*CHART_SPAN)))
+
+    if [ "$OLD_FROM" = "$LAST_FROM" -a "$OLD_TO" = "$LAST_TO" ] ; then
+        OLD_CHART="$LAST_CHART"
+    else
+        [ -n "$VERBOSE" ] && echo >&2 "Fetching old album chart..."
+        OLD_CHART="$(fetch_chart $OLD_FROM $OLD_TO)"
+        FETCHED="$?"
+        if [ "$FETCHED" != 0 ] ; then
+            exit "$FETCHED"
+        fi
+    fi
+
+    local DIFFERENCES="$(echo "$OLD_CHART" | show_chart remove_recent )"
+
+    if [ "$GO_BACK" = "1" ] ; then
+        echo "Here are the albums $LASTFM_USER listened to last week, but not more recently"
+    else
+        echo "Here are the albums $LASTFM_USER listened to $GO_BACK weeks ago, but not more recently"
+    fi
+
+    if [ -z "$DIFFERENCES" ] ; then
+        echo -e "\tNone found"
+    else
+        echo "$DIFFERENCES"
+        RECENT=$(echo "$RECENT" ; echo "$DIFFERENCES")
+    fi
+
+    echo
+}
+
+[ -n "$VERBOSE" ] && echo >&2 "Fetching last album chart..."
+LAST_CHART="$(fetch_chart)"
+FETCHED="$?"
+if [ "$FETCHED" != 0 ] ; then
+    exit "$FETCHED"
+fi
+
+# Grab the time line from the chart
+# <weeklyalbumchart user="jynxzero" from="1163332800" to="1163937600">
+TIME_LINE=$(echo "$LAST_CHART" | grep 'weeklyalbumchart.*from.*to' | head -n 1 )
+
+if [ -z "$TIME_LINE" ] ; then
+    echo >&2 "Error: Couldn't find time span data in latest chart"
+    echo >&2 "The chart data looks like this:"
+    echo >^2 "$LAST_CHART" exit 9
+fi
+
+# Grab the from and to datestamp
+LAST_FROM="$(echo "$TIME_LINE" | sed -n -e 's/.*from="\([0-9]\+\)".*/\1/p' )"
+LAST_TO="$(echo "$TIME_LINE" | sed -n -e 's/.*to="\([0-9]\+\)".*/\1/p' )"
+
+if [ -z "$LAST_FROM" ] ; then
+    echo >&2 "Error: Couldn't find from date in latest chart"
+    echo >&2 "The time line looks like this: $TIME_LINE"
+    exit 8
+fi
+
+if [ -z "$LAST_TO" ] ; then
+    echo >&2 "Error: Couldn't find to date in latest chart"
+    echo >&2 "The time line looks like this: $TIME_LINE"
+    exit 8
+fi
+
+CHART_SPAN=$((LAST_TO-LAST_FROM))
+
+if [ -z "$CHART_SPAN" -o "$CHART_SPAN" = 0 ] ; then
+    echo >&2 "Error: Couldn't calculate chart span"
+    exit 7
+fi
+
+if [ "$CHART_SPAN" != $((7*24*60*60)) ] ; then
+    echo >&2 "Error: Chart does not span a week"
+    exit 7
+fi
+
+# Calculate the range of the LATEST week (the one that is currently happening)
+LATEST_FROM=$LAST_FROM
+LATEST_TO=$LAST_TO
+
+while [ $LATEST_TO -lt $(date +%s) ] ; do
+    LATEST_TO=$((LATEST_TO+CHART_SPAN))
+    LATEST_FROM=$((LATEST_FROM+CHART_SPAN))
+done
+
+# Grab the latest chart
+[ -n "$VERBOSE" ] && echo >&2 "Fetching latest album chart..."
+LATEST_CHART="$(fetch_chart $LATEST_FROM $LATEST_TO)"
+FETCHED="$?"
+if [ "$FETCHED" != 0 ] ; then
+    exit "$FETCHED"
+fi
+
+LATEST_MD5="$(echo "$LATEST_CHART" | md5sum )"
+
+MD5_FILE="$HOME/.lastfm-dontforget.$LASTFM_USER"
+
+if [ -f "$MD5_FILE" ] ; then
+    source "$MD5_FILE"
+fi
+
+if [ "$SAVED_MD5" != "$LATEST_MD5" ] ; then
+    SAVED_UPDATE="$(date)"
+    SAVED_MD5="$LATEST_MD5"
+    echo "SAVED_UPDATE='$SAVED_UPDATE'" >"$MD5_FILE"
+    echo "SAVED_MD5='$SAVED_MD5'" >>"$MD5_FILE"
+fi
+
+echo "Here are the albums $LASTFM_USER listened to this week:"
+
+RECENT="$(echo "$LATEST_CHART" | show_chart )"
+
+if [ -z "$RECENT" ] ; then
+    echo -e "\tNone found"
+else
+    echo "$RECENT"
+fi
+
+echo
+
+
+for GO_BACK in $(seq $START_WEEK $END_WEEK) ; do
+    show_reminder "$GO_BACK"
+    OK="$?"
+    if [ "$OK" != 0 ] ; then
+        exit "$OK"
+    fi
+done
+
+echo "Last updated: $SAVED_UPDATE / Powered by audioscrobbler"
