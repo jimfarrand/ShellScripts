@@ -40,11 +40,11 @@ function scrf {
         # Save DISPLAY and GPG agent so it can be restored inside screen
         local OLDUMASK=$(umask)
         umask 077
-        echo -n "$SESSION_MANAGER" >"/tmp/.realsessionmanager.$USER.$SCREENNAME"
-        echo -n "$DISPLAY" >"/tmp/.realdisplay.$USER.$SCREENNAME"
-        echo -n "$GPG_AGENT_INFO" >"/tmp/.realgpgagent.$USER.$SCREENNAME"
-        echo -n "$SSH_AGENT_PID" >"/tmp/.realsshagentpid.$USER.$SCREENNAME"
-        echo -n "$SSH_AUTH_SOCK" >"/tmp/.realsshauthsock.$USER.$SCREENNAME"
+        echo -n "$SESSION_MANAGER" >|"/tmp/.realsessionmanager.$USER.$SCREENNAME"
+        echo -n "$DISPLAY" >|"/tmp/.realdisplay.$USER.$SCREENNAME"
+        echo -n "$GPG_AGENT_INFO" >|"/tmp/.realgpgagent.$USER.$SCREENNAME"
+        echo -n "$SSH_AGENT_PID" >|"/tmp/.realsshagentpid.$USER.$SCREENNAME"
+        echo -n "$SSH_AUTH_SOCK" >|"/tmp/.realsshauthsock.$USER.$SCREENNAME"
         umask $OLDUMASK
 	screen -D -R "$ID"
 }
