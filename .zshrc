@@ -1,6 +1,21 @@
 ##
 # Jim's ZSH config file
 
+
+##
+# Read in useful shell variables
+if [ -e ".zshrc.variables.$HOST" ] ; then
+    source ".zshrc.variables.$HOST"
+fi
+
+##
+# Mount extra encrypted directories
+if [ -e "$JIMS_SHELLSCRIPTS/bin/mountextraecryptfs" ] ; then
+    "$JIMS_SHELLSCRIPTS/bin/mountextraecryptfs"
+fi
+
+
+
 ##
 # Check if we are running in stupid solaris
 if uname -a | grep SunOS >/dev/null ; then
@@ -87,15 +102,9 @@ function shn {
 }
 
 ##
-# Read in useful shell variables
-if [ -e ".zshrc.variables.$HOST" ] ; then
-    source ".zshrc.variables.$HOST"
-fi
-
-##
 # Function to extend the path
 function add_path {
-    PATH="$PATH:$1"
+    PATH="$1:$PATH"
 }
 
 ##
@@ -114,14 +123,17 @@ fi
 #
 # Screen chooser script, which reminds me I have logged in screens, and sets up
 # aliases to activate them
-if [ -e "$JIMS_SHELLSCRIPTS/screenchoose" ] ; then
-  source "$JIMS_SHELLSCRIPTS/screenchoose"
+if [ -e "$JIMS_SHELLSCRIPTS/bin/screenchoose" ] ; then
+  source "$JIMS_SHELLSCRIPTS/bin/screenchoose"
 fi
+
 
 # Fix display and other stuff inside screen
 function fixdisplay {
+        local OLDUMASK=$(umask)
+        umask 077
         # Fix $DISPLAY
-	FILENAME="/tmp/.realdisplay.$USER.$SCREENNAME"
+	FILENAME="/tmp/.realdsplay.$USER.$SCREENNAME"
 	if [ -e "$FILENAME" ] ; then
 		NEWDISPLAY=`cat "$FILENAME"`
 		if [ "$DISPLAY" != "$NEWDISPLAY" -a -n "$NEWDISPLAY" ] ; then
@@ -129,7 +141,6 @@ function fixdisplay {
 		    export DISPLAY="$NEWDISPLAY"
 		fi
 	fi
-
         # Fix $GPG_AGENT_INFO
 	FILENAME="/tmp/.realgpgagent.$USER.$SCREENNAME"
 	if [ -e "$FILENAME" ] ; then
@@ -174,6 +185,7 @@ function fixdisplay {
 		    export SESSION_MANAGER="$NEW_SESSION_MANAGER"
 		fi
         fi
+        umask $OLDUMASK
 }
 
 # Every now and then, fix the display
@@ -274,7 +286,7 @@ function help
 ##
 # Start an SSH agent, if one isn't already running
 if [ -n "$START_SSH_AGENT" ] ; then
-    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
+    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep -v "<defunct>" | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
     SSH_AGENT_FILE="$HOME/.mantrid"
     if [ "$CURRENT_SSH_AGENT" = "" ]; then
        # there is no agent running

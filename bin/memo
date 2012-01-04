@@ -1,0 +1,56 @@
+#!/bin/bash
+
+DEFAULT_LENGTH="1 day"
+CACHE_DIR="$HOME/.memocache"
+
+function main
+{
+    local LENGTH
+    if [ "$1" = "-d" ] ; then
+        LENGTH="$2"
+        shift 2
+    else
+        LENGTH="$DEFAULT_LENGTH"
+    fi
+
+    local CACHE_ID="$(echo "$@" | md5sum | sed -n -e 's/^\([a-z0-9]\+\).*$/\1/p')"
+    local CACHE_FILE="$CACHE_DIR/$CACHE_ID"
+
+    local CURRENT_TIME="$(date +%s)"
+    local EXPIRE_TIME="$(date -d "$LENGTH" +%s)"
+    local VALID_TIME="$(date -d "$LENGTH ago" +%s)"
+
+    if [ -e "$CACHE_FILE" ] ; then
+        local TIMES="$(head -n 1 "$CACHE_FILE")"
+        local CREATE_TIME="$(echo "$TIMES" | cut -d, -f 1)"
+        local REMOVE_TIME="$(echo "$TIMES" | cut -d, -f 2)"
+        #echo "if [ \"$REMOVE_TIME\" -lt \"$CURRENT_TIME\" -o \"$VALID_TIME\" -gt \"$CREATE_TIME\" ] ; then"
+        if [ "$REMOVE_TIME" -lt "$CURRENT_TIME" -o "$VALID_TIME" -gt "$CREATE_TIME" ] ; then
+            rm "$CACHE_FILE"
+        fi
+    fi
+
+    if [ ! -e "$CACHE_FILE" ] ; then
+        if [ ! -e "$CACHE_DIR" ] ; then
+            mkdir -p "$CACHE_DIR"
+        fi
+
+        echo "$CURRENT_TIME,$EXPIRE_TIME" >"$CACHE_FILE"
+
+        "$@" | tee -a "$CACHE_FILE"
+    else
+        exec 3< "$CACHE_FILE"
+        head -n 1 <&3 >/dev/null
+        cat <&3
+        exec 3>&-
+    fi
+}
+
+if [ -z "$*" ] ; then
+    echo "memo [-d period] <command> [arg0] .. [argn]"
+    echo "period defaults to '1 day'"
+    exit 1
+else
+    main "$@"
+fi
+
