@@ -254,6 +254,7 @@ setopt EXTENDED_HISTORY
 setopt NO_CLOBBER
 setopt HIST_REDUCE_BLANKS
 setopt HIST_NO_STORE   # Don't store history commands in history
+setopt HIST_VERIFY
 
 
 # Interactive comments
