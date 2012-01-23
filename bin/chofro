@@ -1,0 +1,50 @@
+#!/bin/bash
+# Read lines from stdin.  Ask user to pick one, and then execute a command
+# with that line
+
+while [[ "$1" =~ '^-' ]] ; do
+    if [ "$1" == "-g" ] ; then
+        EXTRACT="^[^:]*"
+        shift
+    elif [ "$1" == "-e" ] ; then
+        EXTRACT="$2"
+        shift 2
+    fi
+done
+
+LINES="$(cat)"
+
+if [ -n "$EXTRACT" ] ; then
+    echo "$LINES" | grep --color=always "$EXTRACT" | cat -n
+else
+    echo "$LINES" | cat -n
+fi
+
+
+read -p "Pick a line number: " N </dev/tty
+
+export CHOICE="$(echo "$LINES" | head -n "$N" | tail -n 1)"
+
+if [ -n "$EXTRACT" ] ; then
+    CHOICE="$(echo "$CHOICE" | sed "s/.*\($EXTRACT\).*/\1/")"
+fi
+
+export C="$CHOICE"
+
+echo "Chosen line:"
+echo "$CHOICE"
+
+CMD=""
+for i in "$@" ; do
+    if [ -n "$CMD" ] ; then
+        CMD="$CMD "
+    fi
+    if [[ "$i" =~ '[ $]' ]] ; then
+        CMD="$CMD\"$i\""
+    else
+        CMD="$CMD$i"
+    fi
+done
+
+echo "$CMD"
+eval "$CMD"

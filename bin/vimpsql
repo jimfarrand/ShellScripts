@@ -1,0 +1,35 @@
+#!/bin/bash
+
+SQLFILE="$HOME/.vimpsql"
+SQLFILE_NEW="$SQLFILE.tmp"
+
+while true ; do
+    vim \
+        "+:set nowrap" \
+        "+:set nostartofline" \
+        "+:set foldexpr=getline(v:lnum)=~'^[\|]'" \
+        "+:set foldmethod=expr" \
+        "+:set fml=10" \
+        "+:highlight Folded ctermfg=4" \
+        + "$SQLFILE" 
+
+    SQL="$(cat "$SQLFILE" | grep -v '^[|#]' | grep -v '^$' )"
+
+    if [ -z "$SQL" ] ; then
+        break
+    fi
+
+    echo "$SQL"
+
+    OUTPUT="$(psql 2>&1 "$@" -c "$SQL")"
+
+    ( 
+        ( cat "$SQLFILE" | sed -e 's/^\([ \t]*\)\([^|#]\)/#\1\2/' )
+        echo
+        ( echo "$OUTPUT" | sed -e 's/^/|/' )
+        echo
+        echo "$SQL"
+    ) >"$SQLFILE_NEW"
+
+    mv "$SQLFILE_NEW" "$SQLFILE"
+done
