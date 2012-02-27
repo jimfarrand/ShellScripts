@@ -1,0 +1,11 @@
+#!/bin/bash
+PATTERN="$1"
+if [ -z "$2" ] ; then
+    DIR="$PWD"
+else
+    DIR="$2"
+fi
+
+echo >&2 "locate -eLb \"$PATTERN\" | grep \"^$(readlink -f "$DIR")\""
+locate -eLb "$PATTERN" | grep "^$(readlink -f "$DIR")"
+

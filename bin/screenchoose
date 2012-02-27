@@ -14,7 +14,6 @@
 # Note that running the script is not enough!  The aliases will be defined in
 # the subshell and then lost
 
-
 TMP="/tmp/.screenchoose.$RANDOM"
 
 ## Which sessions should be listed first?
@@ -87,7 +86,7 @@ function screenchoosefunc {
 # State is either Attached or Detached
 function findscreens {
 	if [ -e `which screen` ] ; then
-		screen -ls | grep 'Attached\|Detached' |  sed -e 's/[ \t]*\([0-9]*\)\.\([^ \t]*\).*(\(Attached\|Detached\)).*/screenchoosefunc \2 \1 \3/' | sort
+		screen -ls | grep --colour=none 'Attached\|Detached' |  sed -e 's/[ \t]*\([0-9]*\)\.\([^ \t]*\).*(\(Attached\|Detached\)).*/screenchoosefunc \2 \1 \3/' | sort
 	fi
 }
 
@@ -110,7 +109,7 @@ if [ "$TERM" != "screen" ] ; then
 	fi
 
 	# Remove temp file
-	rm $TMP
+	rm -f $TMP
 
 else
 	# Already in a screen

@@ -1,14 +1,12 @@
-#!/usr/bin/perl
+#!/bin/bash
+PATTERN="$1"
+if [ -z "$2" ] ; then
+    DIR="$PWD"
+else
+    DIR="$2"
+fi
 
-#TODO: Understand directory names
+DIR="$(readlink -f "$DIR")"
 
-if ($ARGV[1] eq "") {
-    $TARGET=".";
-} else {
-    $TARGET=$ARGV[1];
-}
-
-$"=' ';
-@CMD = ("find", "-L", $TARGET, "-name", $ARGV[0]);
-print "@CMD\n";
-system(@CMD);
+echo >&2 "find -L \"$DIR\" -name \"$PATTERN\" | colourcat \"$DIR\""
+find -L "$DIR" -name "$PATTERN" | colourcat red "$DIR"

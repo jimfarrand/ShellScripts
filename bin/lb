@@ -13,7 +13,7 @@ else
 fi
 
 xyxyxlib "logging" || exit 1
-logging_mode_verbose
+#logging_mode_verbose
 DASH_V="-v"
 
 xyxyxlib "file_locking" || exit 1
@@ -61,7 +61,7 @@ function copy_data {
     local HASH_FILE="$5"
     local DELETE_SOURCE_FILE=""
 
-    [ -z "$HASH_FILE" ] && ( echo "HASH_FILE" ; exit 1 )
+    [ -z "$HASH_FILE" ] && ( echo "HASH_FILE not set" ; exit 1 )
 
     log_debug "Storing data in block store"
 
@@ -91,7 +91,7 @@ function copy_data {
         log_verbose "Calculated hash: $HASH"
 
         log_debug "Linking to $HASH_FILE"
-        ln $DASH_V -s "$LARGE_BLOCKS_DIR/$HASH" "$HASH_FILE"
+        ln $DASH_V -s "$LARGE_BLOCKS_DIR/$HASH" "$HASH_FILE" || { log_error "Failed to link $LARGE_BLOCKS_DIR/$HASH to $HASH_FILE" ; return 1 ; }
     fi
 
     log_debug "Data hash: $HASH"

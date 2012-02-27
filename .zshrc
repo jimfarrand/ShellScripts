@@ -1,11 +1,24 @@
 ##
 # Jim's ZSH config file
 
+if [ -z "$ZDOTDIR" ] ; then
+    CONFIG_HOME="$HOME"
+else
+    CONFIG_HOME="$ZDOTDIR"
+fi
 
 ##
 # Read in useful shell variables
-if [ -e ".zshrc.variables.$HOST" ] ; then
-    source ".zshrc.variables.$HOST"
+if [ -e "$CONFIG_HOME/.zshrc.variables.$HOST" ] ; then
+    source "$CONFIG_HOME/.zshrc.variables.$HOST"
+fi
+
+if [ -z "$JIMS_SHELLSCRIPTS" ] ; then
+    if [ -d "$HOME/local/jimsshellscripts" ] ; then
+        export JIMS_SHELLSCRIPTS="$HOME/local/jimsshellscripts"
+    elif [ -d "$ZDOTDIR/local/jimsshellscripts/bin" ] ; then
+        export JIMS_SHELLSCRIPTS="$ZDOTDIR/local/jimsshellscripts"
+    fi
 fi
 
 ##
@@ -57,9 +70,17 @@ case $HOST in
   (*) 		HOST_COLOUR=$PR_RED ;;
 esac
 
+case $USER in
+    jfarrand|jim)
+        PROMPTUSER=""
+        ;;
+    *)
+        PROMPTUSER="$PR_YELLOW%B$USER%b$PR_WHITE@"
+        ;;
+esac
 
 # Set our prompt, which looks like this:
-PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$HOST_COLOUR%B%m%b$PR_WHITE:$PR_DIM_BLUE%h$PR_WHITE:%B%2~%b%(!.#.$) "
+PROMPT="[%B%(?.$PR_GREEN.$PR_RED)%?$PR_WHITE%(1j./%j.)%b]$PROMPTUSER$HOST_COLOUR%B%m%b$PR_WHITE:$PR_DIM_BLUE%h$PR_WHITE:%B%2~%b%(!.#.$) "
 
 # This sets the title of the xterminal to include the name of the running program
 case $TERM in (xterm*|rxvt|screen)
@@ -71,8 +92,6 @@ case $TERM in (xterm*|rxvt|screen)
         fi
 
         if [ "$TERM" = "screen" ] ; then
-            #    print -Pn "\ek%n@%m: %~\e\\"
-            #print -Pn "\ek${SHELL_NAME_PROMPT}Shell in %2~ as %n on %m\e\\"
             print -Pn "\ek${SHELL_NAME_PROMPT} | %2~ | %n@%m\e\\"
         else
             print -Pn "\e]0;${SHELL_NAME_PROMPT} | %2~ | %n@%m\a"
@@ -86,11 +105,9 @@ case $TERM in (xterm*|rxvt|screen)
         fi
 
         if [ "$TERM" = "screen" ] ; then
-                #print -Pn "\ek%n@%m: $1\e\\"
-                #print -Pn "\ek${SHELL_NAME_PROMPT}$1 in %2~ as %n on %m\e\\"
-                print -Pn "\ek${SHELL_NAME_PROMPT}$1 | %2~ | %n@%m\e\\"
+                print -Pn "\ek${SHELL_NAME_PROMPT}${(q)1} | %2~ | %n@%m\e\\"
         else
-                print -Pn "\e]0;${SHELL_NAME_PROMPT}$1 | %2~ | %n@%m\a"
+                print -Pn "\e]0;${SHELL_NAME_PROMPT}${(q)1} | %2~ | %n@%m\a"
         fi
   }
 ;;
@@ -118,6 +135,157 @@ fi
 # Cabal
 if [ -d "$HOME/.cabal/bin" ] ; then
     add_path "$HOME/.cabal/bin"
+fi
+
+##
+# I don't know what this does any more, but I think it's required for the
+# bookmarking to work right in the bm script below.
+if ! uname -a | grep >/dev/null Cygwin ; then
+	# The following lines were added by compinstall
+
+	zstyle ':completion:*' completer _complete
+	zstyle :compinstall filename '/home/jim/.zshrc'
+
+	autoload -Uz compinit
+	compinit
+	# End of lines added by compinstall
+fi
+
+##
+# Directory bookmarking script
+if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bin/bm" ] ; then
+    source "$JIMS_SHELLSCRIPTS/bin/bm"
+fi
+
+
+##
+# Local configuration goes in .zshrc.hostname...
+LOCAL="$CONFIG_HOME/.zshrc.$HOST"
+if [ -e  "$LOCAL" ] ; then
+  . "$LOCAL"
+fi
+
+# Should probably do something smarter..
+if [ -e "$CONFIG_HOME/.zshrc.imdb" ] ; then
+    source $CONFIG_HOME/.zshrc.imdb
+fi
+
+###
+# Watch for logins, check every 20 seconds.
+WATCH=notme
+LOGCHECK=20
+# jim logged on pts/32 from :0.0 at 13:15
+WATCHFMT='%n %a %l from %m at %T'
+
+###
+# Report execution time if greater than 5 seconds
+REPORTTIME=5
+TIMEFMT="%J CPU: %*Er %*Uu %*Ss %P	Flts: %Fma %Rmi"
+
+##
+# Setup vim or vi as editor
+if [ -e `which vim` ] ; then
+	export VISUAL=vim
+	export EDITOR=vim
+    alias vi=vim
+else
+	export VISUAL=vi
+	export EDITOR=vi
+fi
+
+##
+# Use less as a pager.
+if [ -e `which less` ] ; then
+    export PAGER=less
+    export LESS="-iMSx4 -FX"
+fi
+
+###
+# Locale
+export LANG=en_GB.UTF-8
+
+###
+# History config
+HISTSIZE=200000
+SAVEHIST=100000
+
+# Sometimes, I like to get my shell config from another account by setting
+# ZDOTDIR.  In these cases, it's useful to specify my own history file
+# seperate from theirs.
+if [ -z "$ZDOTDIR" ] ; then
+    HISTFILE=~/.zsh_history
+else
+    HISTFILE=~/.zsh_history.$(basename "$ZDOTDIR")
+fi
+
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_FIND_NO_DUPS
+setopt HIST_REDUCE_BLANKS
+setopt INC_APPEND_HISTORY
+setopt EXTENDED_HISTORY
+setopt NO_CLOBBER
+setopt HIST_REDUCE_BLANKS
+setopt HIST_NO_STORE   # Don't store history commands in history
+setopt HIST_VERIFY
+
+
+# Interactive comments
+setopt INTERACTIVECOMMENTS
+
+##
+# Colour grepping
+export GREP_OPTIONS='--color=auto'
+
+##
+# Get bash help (which is useful and mostly applicable to zsh)
+function help
+{
+    bash -c "help $1"
+}   
+
+##
+# Start an SSH agent, if one isn't already running
+if [ -n "$START_SSH_AGENT" ] ; then
+    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep -v "<defunct>" | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
+    SSH_AGENT_FILE="$HOME/.mantrid"
+    if [ "$CURRENT_SSH_AGENT" = "" ]; then
+       # there is no agent running
+       if [ -e "$SSH_AGENT_FILE" ]; then
+          # remove the old file
+          /bin/rm -f "$SSH_AGENT_FILE"
+       fi;
+       # start a new agent
+       /usr/bin/ssh-agent -t 3600 | /bin/grep -v echo >&"$SSH_AGENT_FILE"
+    fi;
+
+    test -e "$SSH_AGENT_FILE" && source "$SSH_AGENT_FILE"
+
+    alias kagent="kill -9 $SSH_AGENT_PID"
+    alias addk="ssh-add -t 3600"
+fi
+
+## 
+# Make home/end work
+bindkey '^[OH' beginning-of-line
+bindkey '^[OF' end-of-line
+
+##
+# Aliases
+
+alias h='history -iDf -$((LINES-2))'
+alias hh='history -iDf 0 | less -X +\>'
+alias hgr='history -d 1 | egrep'
+alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
+alias ls="ls --color=auto"
+alias cp="cp -i $VERB_ARG"
+alias mv="mv -i $VERB_ARG"
+
+
+# Trashcan script
+if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
+    alias rm="$JIMS_SHELLESCRIPTS/trash -o $VERB_ARG"
+else
+    alias rm="rm -i $VERB_ARG"
 fi
 
 #
@@ -196,129 +364,4 @@ function periodic {
 }
 PERIOD=60
 
-
-##
-# I don't know what this does any more, but I think it's required for the
-# bookmarking to work right in the bm script below.
-if ! uname -a | grep >/dev/null Cygwin ; then
-	# The following lines were added by compinstall
-
-	zstyle ':completion:*' completer _complete
-	zstyle :compinstall filename '/home/jim/.zshrc'
-
-	autoload -Uz compinit
-	compinit
-	# End of lines added by compinstall
-fi
-
-##
-# Directory bookmarking script
-if [ -d "$JIMS_SHELLSCRIPTS" -a -e "$JIMS_SHELLSCRIPTS/bin/bm" ] ; then
-    source "$JIMS_SHELLSCRIPTS/bin/bm"
-fi
-
-
-##
-# Local configuration goes in .zshrc.hostname...
-LOCAL="$HOME/.zshrc.$HOST"
-if [ -e  "$LOCAL" ] ; then
-  . "$LOCAL"
-fi
-
-###
-# Watch for logins, check every 20 seconds.
-WATCH=notme
-LOGCHECK=20
-# jim logged on pts/32 from :0.0 at 13:15
-WATCHFMT='%n %a %l from %m at %T'
-
-###
-# Report execution time if greater than 5 seconds
-REPORTTIME=5
-TIMEFMT="%J CPU: %*Er %*Uu %*Ss %P	Flts: %Fma %Rmi"
-
-##
-# Setup vim or vi as editor
-if [ -e `which vim` ] ; then
-	export VISUAL=vim
-	export EDITOR=vim
-    alias vi=vim
-else
-	export VISUAL=vi
-	export EDITOR=vi
-fi
-
-
-###
-# Locale
-export LANG=en_GB.UTF-8
-
-###
-# History config
-HISTSIZE=200000
-SAVEHIST=100000
-HISTFILE=~/.zsh_history
-setopt HIST_EXPIRE_DUPS_FIRST
-setopt HIST_FIND_NO_DUPS
-setopt HIST_REDUCE_BLANKS
-setopt INC_APPEND_HISTORY
-setopt EXTENDED_HISTORY
-setopt NO_CLOBBER
-setopt HIST_REDUCE_BLANKS
-setopt HIST_NO_STORE   # Don't store history commands in history
-setopt HIST_VERIFY
-
-
-# Interactive comments
-setopt INTERACTIVECOMMENTS
-
-##
-# Colour grepping
-export GREP_OPTIONS='--color=auto'
-
-##
-# Get bash help (which is useful and mostly applicable to zsh)
-function help
-{
-    bash -c "help $1"
-}   
-
-##
-# Start an SSH agent, if one isn't already running
-if [ -n "$START_SSH_AGENT" ] ; then
-    CURRENT_SSH_AGENT=`/bin/ps -ef | /bin/grep -v "<defunct>" | /bin/grep ssh-agent | /bin/grep -v grep  | /usr/bin/awk '{print $2}' | xargs`
-    SSH_AGENT_FILE="$HOME/.mantrid"
-    if [ "$CURRENT_SSH_AGENT" = "" ]; then
-       # there is no agent running
-       if [ -e "$SSH_AGENT_FILE" ]; then
-          # remove the old file
-          /bin/rm -f "$SSH_AGENT_FILE"
-       fi;
-       # start a new agent
-       /usr/bin/ssh-agent -t 3600 | /bin/grep -v echo >&"$SSH_AGENT_FILE"
-    fi;
-
-    test -e "$SSH_AGENT_FILE" && source "$SSH_AGENT_FILE"
-
-    alias kagent="kill -9 $SSH_AGENT_PID"
-    alias addk="ssh-add -t 3600"
-fi
-
-## 
-# Make home/end work
-bindkey '^[OH' beginning-of-line
-bindkey '^[OF' end-of-line
-
-##
-# Aliases
-
-alias h='history -iDf'
-alias hgr='history -d 1 | egrep'
-alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
-alias ls="ls --color"
-
-# Trashcan script
-if [ -e "$JIMS_SHELLESCRIPTS/trash" ] ; then
-    alias rm="$HOME/scripts/trash -o -v"
-fi
 

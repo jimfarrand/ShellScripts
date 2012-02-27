@@ -1,0 +1,49 @@
+#!/bin/bash
+# Preserve some shell output for later
+
+MY_DIR="$HOME/.preserve"
+DATE="$(date +%Y%m%d-%H%M%S)"
+
+if [ ! -d "$MY_DIR" ] ; then
+    mkdir -pv "$MY_DIR"
+fi
+
+while [[ $1 =~ '^-' ]] ; do
+    if [ "$1" == "--show" -o "$1" == "-s" ] ; then
+        SHOW=true
+        shift
+    elif [ "$1" == "--quoted" -o "$1" == "-q" ] ; then
+        QUOTED=true
+        shift
+    elif [ "$1" == "--nopwd" -o "$1" == "-n" ] ; then
+        NOPWD=true
+        shift
+    fi
+done
+
+UNPRINTABLES=' /\|#*'
+
+if [[ -z "$NOPWD" ]] ; then
+    STRIPPED="$(echo -n "$PWD" "$@" | tr "$UNPRINTABLES" '_')"
+else
+    STRIPPED="$(echo -n "$@" | tr "$UNPRINTABLES" '_')"
+fi
+
+MAX_SIZE=128
+if [ "$(echo -n "$STRIPPED" | wc -c)" -gt $MAX_SIZE ] ; then
+    SUM="$(echo -n "$STRIPPED" | md5sum | head -c 16)"
+    STRIPPED="$(echo -n "$SUM." ; (echo "$STRIPPED" | head -c $MAX_SIZE))"
+fi
+
+if [[ -z "$SHOW" ]] ; then
+    if [[ -z "$QUOTED" ]] ; then
+        "$@"
+    else
+        eval "$@"
+    fi | tee "$MY_DIR/$DATE.$STRIPPED"
+else
+    for FILE in $(ls -b "$MY_DIR/"*"$STRIPPED") ; do
+        echo "cat '$FILE' | tail"
+        cat $FILE | tail
+    done
+fi

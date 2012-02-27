@@ -1,0 +1,16 @@
+#!/bin/bash
+
+TAG="deleteme-$USER"
+DATE="$(date +%Y%m%d-%H%M%S)"
+
+for FILE in "$@" ; do
+    if [ "$FILE" = "--locate" ] ; then
+        echo "Using locate to find $TAG..."
+        locate "$TAG"
+    else
+        DIRNAME="$(dirname "$FILE")"
+        BASENAME="$(basename "$FILE")"
+        TARGET="$DIRNAME/.$TAG.$BASENAME.$DATE.bak"
+        mv -v "$FILE" "$TARGET"
+    fi
+done

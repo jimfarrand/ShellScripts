@@ -1,6 +1,12 @@
 #!/bin/bash
 
-SQLFILE="$HOME/.vimpsql"
+if [ "$1" = --file ] ; then
+    SQLFILE="$2"
+    shift 2
+else
+    SQLFILE="$HOME/.vimpsql"
+fi
+
 SQLFILE_NEW="$SQLFILE.tmp"
 
 while true ; do
