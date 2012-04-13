@@ -1,0 +1,5 @@
+#!/bin/bash
+FILE=/tmp/tless-$RANDOM
+
+tee "$FILE"
+less -F '+>' "$FILE"

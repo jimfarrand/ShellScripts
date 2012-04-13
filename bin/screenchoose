@@ -45,7 +45,7 @@ function scrf {
         echo -n "$SSH_AGENT_PID" >|"/tmp/.realsshagentpid.$USER.$SCREENNAME"
         echo -n "$SSH_AUTH_SOCK" >|"/tmp/.realsshauthsock.$USER.$SCREENNAME"
         umask $OLDUMASK
-	screen -D -R "$ID"
+	screen -c "$CONFIG_HOME/.screenrc" -D -R "$ID"
 }
 
 SCREENS=0

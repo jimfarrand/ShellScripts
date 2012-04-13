@@ -75,7 +75,7 @@ case $USER in
         PROMPTUSER=""
         ;;
     *)
-        PROMPTUSER="$PR_YELLOW%B$USER%b$PR_WHITE@"
+        PROMPTUSER="$PR_YELLOW%B$USER@$PR_WHITE%b"
         ;;
 esac
 

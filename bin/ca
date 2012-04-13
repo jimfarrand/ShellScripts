@@ -1,0 +1,32 @@
+#!/bin/bash
+
+CACHEDIR="/tmp/.cacache.$USER"
+
+if [ ! -e "$CACHEDIR" ] ; then
+    mkdir -p "$CACHEDIR"
+    chmod go-wx "$CACHEDIR"
+fi
+
+LINE="cd '$PWD';"
+
+for i in "$@" ; do
+    LINE="$LINE '$i'"
+done
+
+SUM=$(echo -n "$LINE" | md5sum | cut -d ' ' -f 1)
+CACHEFILE="$CACHEDIR/$SUM"
+
+if [ -e "$CACHEFILE" ] ; then
+    FIRST=true
+    echo "# Cached from $(stat --format=%y "$CACHEFILE")"
+    cat "$CACHEFILE" | while read LINE ; do
+        if [ "$FIRST" = true ] ; then
+            echo >&2 "$LINE"
+        else
+            echo "$LINE"
+        fi
+    done
+else
+    echo "# Uncached"
+    ( echo "# $LINE" ; eval "$LINE" ) | tee "$CACHEFILE"
+fi
