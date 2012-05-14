@@ -279,6 +279,7 @@ alias safefs='encfs --idle=15 ~/.encfs/Safe ~/Safe && pushd ~/Safe'
 alias ls="ls --color=auto"
 alias cp="cp -i $VERB_ARG"
 alias mv="mv -i $VERB_ARG"
+alias grep-nosvn="grep -v '/\.svn/'"
 
 
 # Trashcan script
